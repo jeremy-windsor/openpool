@@ -611,3 +611,195 @@ Maps onto the build phases in `openpool-plan.md`:
    shapes later.
 4. **Canonical units in the DB** — normalize to SI internally vs.
    store-as-entered + unit field (ties to openpool-plan cross-cutting #1).
+
+---
+
+## 16. Screen wireframes (mobile-first, phone viewport)
+
+Low-fidelity layout intent, not pixel spec. Calm Aquatic styling from §3.6
+applies (rounded `╭─╮` cards float on the tinted page; `▓` = filled primary
+button; `◉/✓/⚠` carry status alongside color).
+
+### 16.1 Dashboard `/`
+
+```text
+┌─────────────────────────────┐
+│ Home Pool ▾        ☀   ⚙     │  top bar: pool switcher · theme · settings
+├─────────────────────────────┤
+│ ╭─────────────────────────╮ │
+│ │ ◉ Balanced — no action  │ │  StatusBanner (good tint)
+│ ╰─────────────────────────╯ │
+│  🕐 Tested 2 days ago        │  age chip (turns amber/red when stale)
+│                             │
+│  RECOMMENDED                │
+│ ╭─────────────────────────╮ │
+│ │ Add ~32 oz liquid       │ │  RecommendationCard
+│ │ chlorine                │ │
+│ │ [ Log this ]    why ▾   │ │
+│ ╰─────────────────────────╯ │
+│                             │
+│  READINGS                   │
+│ ╭───────────╮ ╭───────────╮ │
+│ │ FC    ppm │ │ pH        │ │  ReadingTile grid
+│ │   5.0     │ │   7.6     │ │
+│ │ ▽──●───△  │ │ ▽───●──△  │ │  RangeBar (●=value, band shaded)
+│ ╰───────────╯ ╰───────────╯ │
+│ ╭───────────╮ ╭───────────╮ │
+│ │ TA   80   │ │ CYA  70   │ │
+│ │ ▽─●────△  │ │ ▽────●─△  │ │
+│ ╰───────────╯ ╰───────────╯ │
+│                             │
+│  RECENT ADDITIONS           │
+│  • 32 oz chlorine · today   │
+│  • 4 lb stabilizer · Mon    │
+├─────────────────────────────┤
+│ 🏠    📋   ⟮＋⟯   📈    🧪    │  bottom nav (＋ raised, brand-600)
+│Home  Hist  Add  Trend Calc  │
+└─────────────────────────────┘
+```
+
+### 16.2 Add reading `/readings/new`
+
+```text
+┌─────────────────────────────┐        After save → results:
+│ ‹ New reading        now ⌚   │     ┌─────────────────────────────┐
+├─────────────────────────────┤     │          ✓ Saved            │ toast
+│  FC (free chlorine)         │     ├─────────────────────────────┤
+│  ╭───╮ ┌───────┐ ╭───╮      │     │ ╭─────────────────────────╮ │
+│  │ − │ │  5.0  │ │ + │ ppm  │ ←   │ │ ◉ Add chlorine today    │ │
+│  ╰───╯ └───────┘ ╰───╯      │     │ ╰─────────────────────────╯ │
+│        from last test       │ hint│  Based on this test:        │
+│                             │     │  • Add ~32 oz liquid Cl     │
+│  CC    [ −  0.0  + ] ppm     │     │    [ Log it ]    why ▾      │
+│                             │     │                             │
+│  pH    [ −  9.5  + ]         │     │ ▓ Log the chemicals I added │
+│  ⚠ unusual — double-check?   │ amber│  View dashboard            │
+│                             │ (non-└─────────────────────────────┘
+│  ▸ More tests (TA, CH, CYA,  │ block)
+│    salt, borates, temp…)    │  Disclosure, remembers open/closed
+│                             │
+│  Notes ____________________ │
+├─────────────────────────────┤
+│ ▓▓▓▓▓  Save reading  ▓▓▓▓▓   │  pinned above nav, thumb-reachable
+└─────────────────────────────┘
+```
+
+### 16.3 Calculator `/calculator`
+
+```text
+┌─────────────────────────────┐
+│ Calculator                  │
+├─────────────────────────────┤
+│ Goal:  (Raise FC) Lower pH   │  chips — chosen goal reveals only
+│        Raise TA  Raise CH …  │  the fields that matter
+│                             │
+│  Current FC   ┌─────┐ ppm    │
+│  Target  FC   ┌─────┐ ppm    │
+│  Volume       ┌──────┐ gal   │  prefilled from settings
+│  Product   10% liquid ▾      │
+│                             │
+│ ╭─────────────────────────╮ │
+│ │  Add  ≈ 1.5 jugs        │ │  DoseResultCard (hero)
+│ │  32 fl oz · 0.25 gal    │ │  multi-unit underneath
+│ │  also affects: pH ↓ a bit│ │  side-effects panel
+│ │  [ Log as addition ]    │ │
+│ │  show math ▾            │ │
+│ ╰─────────────────────────╯ │
+│   (Lower pH goal adds:       │
+│    ⚠ approximate — retest)   │  ConfidenceBadge on approximate math
+└─────────────────────────────┘
+```
+
+### 16.4 History `/history` & 16.5 Trends `/trends`
+
+```text
+┌─────────────────────────────┐   ┌─────────────────────────────┐
+│ History                     │   │ Trends            30d ▾      │
+│ [Readings] Additions  Maint │   ├─────────────────────────────┤
+│ 7d · 30d · 90d · all        │   │  FC (ppm)                   │
+├─────────────────────────────┤   │ 8┤            ╭●            │
+│ ╭─────────────────────────╮ │   │ 6┤░░░░░░░░╭───╯░░░░ ←band    │
+│ │ Jun 6, 9:02am           │ │   │ 4┤░░░╭●──╯░░░░░░░░░          │
+│ │ FC 5.0·pH 7.6·TA 80     │ │   │ 2┤──╯                      │
+│ │ CYA 70·salt 3200        │ │   │  └┬────┬────┬────┬──        │
+│ ╰─────────────────────────╯ │   │      ▲ chem addition marker │
+│ ╭─────────────────────────╮ │   │                             │
+│ │ Jun 4, 8:10am           │ │   │  pH …                       │
+│ │ FC 3.0·pH 7.5· …        │ │   │  ⓘ view as table (a11y)     │
+│ ╰─────────────────────────╯ │   └─────────────────────────────┘
+│ [ Export CSV ] [ Backup ▾ ] │   StackedRow on phone; real table
+└─────────────────────────────┘   on wide screens.
+```
+
+### 16.6 Settings `/settings` & 16.7 Share `/share/{id}`
+
+```text
+┌─────────────────────────────┐   ┌─────────────────────────────┐
+│ Settings                    │   │         Home Pool           │ no nav,
+│ POOL PROFILE                │   │ ╭─────────────────────────╮ │ no edit
+│  Name        Home Pool   ›  │   │ │ ◉ Balanced              │ │
+│  Volume      20,000 gal  ›  │   │ ╰─────────────────────────╯ │
+│   ↳ volume helper           │   │  Tested 2 days ago          │
+│  Surface     plaster     ›  │   │  FC 5.0  CC 0.0  pH 7.6     │
+│  Sanitizer   liquid Cl   ›  │   │  TA 80   CH 350  CYA 70     │
+│ TARGETS                     │   │  salt 3200    CSI 0.0       │
+│  Mode        Maintenance ›  │   │                openpool     │
+│ UNITS   ( US )  Metric      │   └─────────────────────────────┘
+│ APPEARANCE                  │   Read-only. Notes hidden unless
+│  Light·Dark·Outdoor·System  │   explicitly enabled. iframe-safe.
+│ SHARING  Read-only  ◯ off   │
+│ DATA  Export JSON › Import › │
+│ ▸ Integrations (advanced)   │
+└─────────────────────────────┘
+```
+
+### 16.8 Universal states (apply to every list/data view)
+
+```text
+EMPTY (first run)      LOADING (skeleton)     ERROR              OFFLINE
+┌───────────────┐      ┌───────────────┐      ┌───────────────┐  ┌───────────────┐
+│      💧       │      │ ▢▢▢▢▢▢▢▢▢▢    │      │ ⚠ Couldn't    │  │⚡offline —     │
+│ No readings   │      │ ▢▢▢▢  ▢▢▢▢    │      │   load        │  │ last synced 1h│
+│ yet           │      │ ▢▢▢▢▢▢        │      │ [ Retry ]     │  └───────────────┘
+│▓ Add first    │      │  (shimmer)    │      └───────────────┘  (ribbon, content
+│  reading ▓    │      └───────────────┘      plain msg, no       still renders
+└───────────────┘      skeletons, not          stack trace        from cache)
+single CTA, no         spinners (spinner
+fake zeros             only on buttons)
+```
+
+---
+
+## 17. Component states & micro-interactions
+
+Each component's full state set — the build models implement *all* of these, not
+just the default.
+
+| Component | States to build |
+|-----------|-----------------|
+| **StepperInput** | default · focused (decimal keypad) · at-min (`−` disabled) · unusual-value (amber inline hint, **non-blocking**) · seeded "from last test" tag · unit suffix |
+| **RecommendationCard** | actionable · expanded ("why/math" disclosure open) · logged (collapses to "✓ logged 32 oz") · none ("nothing to add — you're in range") |
+| **DoseResultCard** | exact · approximate (ConfidenceBadge) · already-in-range ("no dose needed") · can't-lower ("can't remove with a chemical — dilute / wait / sun") · with side-effects panel · jugs/bags when configured |
+| **StatusBanner** | good · caution · danger · stale (old reading) · offline — each = tint-bg + status-shade text + leading icon |
+| **RangeBar** | in-band · below-band · above-band · no-target-set (neutral) — marker dot colored by status |
+| **ReadingTile** | populated · missing (this test skipped that param → dim "—", not a fake 0) · tap → its trend |
+| **Toast** | success · success-with-undo (delete) · auto-dismiss + manual close |
+| **DataTable/StackedRow** | populated · empty (per tab) · filtered-to-empty · loading (skeleton rows) · row → edit sheet |
+| **TrendChart** | populated · too-few-points ("need 2+ readings") · table fallback link · addition markers toggle |
+| **BottomNav/Sidebar** | active tab highlighted · raised center "＋" · collapses to sidebar ≥1024px |
+| **Sheet/Modal** | edit reading · confirm-delete (the **only** confirm; everything else is undo-able) |
+
+**Micro-interactions (all disabled under `prefers-reduced-motion`)**
+
+- **Save** is optimistic: row/tile appears instantly, button shows inline spinner,
+  reconcile on server ack. Poolside latency never blocks the next tap.
+- **"Log this"** from a recommendation/dose pre-fills the addition form — one tap
+  from advice to logged.
+- **Tap a ReadingTile** → its trend chart; **tap a history row** → edit sheet.
+- **Pull-to-refresh** on dashboard re-fetches latest.
+- **Theme switch** cross-fades surfaces gently (`--ease`); instant under reduced
+  motion.
+- **Validation** is inline + amber + non-blocking — never a hard stop, never a
+  modal. Real readings are sometimes weird; warn, don't fight.
+- **Confirmations**: destructive only (delete). Toasts confirm everything else;
+  edits are reversible so don't nag.
