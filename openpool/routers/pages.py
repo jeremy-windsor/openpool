@@ -101,6 +101,9 @@ def history(request: Request, conn: Connection = Depends(get_db)):
     readings = db.list_readings(conn, pool_id)
     for row in readings:
         row["tested_at_local"] = db.local_timestamp(row.get("tested_at"), timezone_name)
+    additions = db.list_additions(conn, pool_id)
+    for row in additions:
+        row["added_at_local"] = db.local_timestamp(row.get("added_at"), timezone_name)
     return templates.TemplateResponse(
         request=request,
         name="history.html",
@@ -108,7 +111,7 @@ def history(request: Request, conn: Connection = Depends(get_db)):
             "title": "History",
             "pool_id": pool_id,
             "readings": readings,
-            "additions": db.list_additions(conn, pool_id),
+            "additions": additions,
         },
     )
 

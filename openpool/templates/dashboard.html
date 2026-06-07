@@ -59,7 +59,7 @@
   {% if snapshot.recentAdditions %}
   <ul class="ledger">
     {% for addition in snapshot.recentAdditions %}
-    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.addedAt }}</span></li>
+    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.addedAtLocal or addition.addedAt }}</span></li>
     {% endfor %}
   </ul>
   {% else %}

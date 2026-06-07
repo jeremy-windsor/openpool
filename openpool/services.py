@@ -130,6 +130,7 @@ def build_snapshot(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any]:
 
     latest = db.latest_reading(conn, pool_id)
     additions = db.list_additions(conn, pool_id, limit=3)
+    timezone_name = pool.get("timezone") or "UTC"
     targets = fc_cya_targets(
         latest.get("cya") if latest else pool.get("default_cya_target"),
         pool.get("sanitizer") or "liquid_chlorine",
@@ -139,7 +140,7 @@ def build_snapshot(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any]:
     if overview:
         overview["testedAtLocal"] = db.local_timestamp(
             latest.get("tested_at"),
-            pool.get("timezone") or "UTC",
+            timezone_name,
         )
 
     return {
@@ -164,6 +165,7 @@ def build_snapshot(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any]:
                 "amount": item["amount"],
                 "unit": item["unit"],
                 "addedAt": item["added_at"],
+                "addedAtLocal": db.local_timestamp(item.get("added_at"), timezone_name),
                 "reason": item.get("reason"),
             }
             for item in additions
