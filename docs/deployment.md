@@ -53,6 +53,14 @@ That is deliberate until authentication exists. Put a reverse proxy or VPN in
 front of it before exposing it beyond the host. The container stores SQLite data
 at:
 
+Set the pool's default timezone for new deployments:
+
+```yaml
+environment:
+  OPENPOOL_TIMEZONE: America/Phoenix
+  TZ: America/Phoenix
+```
+
 ```text
 ./data/openpool.sqlite
 ```

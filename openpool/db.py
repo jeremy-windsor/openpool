@@ -287,10 +287,15 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
     return cleaned
 
 
-def ensure_default_pool(conn: sqlite3.Connection, pool_id: str = "example") -> dict[str, Any]:
+def ensure_default_pool(
+    conn: sqlite3.Connection,
+    pool_id: str = "example",
+    timezone_name: str = "UTC",
+) -> dict[str, Any]:
     existing = get_pool(conn, pool_id)
     if existing:
         return existing
+    timezone_name = validate_timezone_name(timezone_name)
     return create_pool(
         conn,
         {
@@ -300,7 +305,7 @@ def ensure_default_pool(conn: sqlite3.Connection, pool_id: str = "example") -> d
             "surface": "plaster",
             "sanitizer": "liquid_chlorine",
             "unit_system": "us",
-            "timezone": "UTC",
+            "timezone": timezone_name,
         },
     )
 

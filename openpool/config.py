@@ -12,6 +12,7 @@ class Settings:
     host: str
     port: int
     default_pool_id: str
+    default_timezone: str
 
 
 def get_settings() -> Settings:
@@ -21,5 +22,5 @@ def get_settings() -> Settings:
         host=os.getenv("OPENPOOL_HOST", "127.0.0.1"),
         port=int(os.getenv("OPENPOOL_PORT", "5280")),
         default_pool_id=os.getenv("OPENPOOL_DEFAULT_POOL_ID", "example"),
+        default_timezone=os.getenv("OPENPOOL_TIMEZONE") or os.getenv("TZ", "UTC"),
     )
-

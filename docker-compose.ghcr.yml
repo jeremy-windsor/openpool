@@ -8,10 +8,10 @@ services:
       - ./data:/data
     environment:
       OPENPOOL_DB: /data/openpool.sqlite
+      OPENPOOL_TIMEZONE: America/Phoenix
       TZ: America/Phoenix
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     restart: unless-stopped
-

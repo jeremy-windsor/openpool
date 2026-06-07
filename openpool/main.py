@@ -21,7 +21,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     conn = db.connect(settings.db_path)
     try:
         db.init_db(conn)
-        db.ensure_default_pool(conn, settings.default_pool_id)
+        db.ensure_default_pool(
+            conn,
+            settings.default_pool_id,
+            settings.default_timezone,
+        )
     finally:
         conn.close()
     yield

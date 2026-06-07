@@ -9,6 +9,7 @@ services:
       - ./data:/data
     environment:
       OPENPOOL_DB: /data/openpool.sqlite
+      OPENPOOL_TIMEZONE: America/Phoenix
       TZ: UTC
     security_opt:
       - no-new-privileges:true

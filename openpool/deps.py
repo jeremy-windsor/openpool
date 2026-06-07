@@ -12,8 +12,11 @@ def get_db() -> Iterator[Connection]:
     conn = db.connect(settings.db_path)
     try:
         db.init_db(conn)
-        db.ensure_default_pool(conn, settings.default_pool_id)
+        db.ensure_default_pool(
+            conn,
+            settings.default_pool_id,
+            settings.default_timezone,
+        )
         yield conn
     finally:
         conn.close()
-
