@@ -27,6 +27,7 @@ See:
 
 - [`plans/openpool-plan.md`](plans/openpool-plan.md)
 - [`plans/math-plan.md`](plans/math-plan.md)
+- [`plans/ui-design-plan.md`](plans/ui-design-plan.md)
 
 ## Security / licensing note
 

@@ -1,10 +1,68 @@
-.venv/
-__pycache__/
-*.pyc
+# ---- Claude / AI assistant files (keep private; idea-protection) ----
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+.claude/
+.cursor/
+.aider*
+.mcp.json
+.codeium/
+
+# ---- Secrets / environment ----
 .env
 .env.*
 !.env.example
+
+# ---- Python ----
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.python-version
+
+# ---- Tooling caches ----
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# ---- Node / front-end tooling (if used for assets) ----
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.parcel-cache/
+dist-assets/
+
+# ---- Application data (never commit real pool data) ----
 /data/
 *.sqlite
 *.sqlite3
+*.db
+*.db-journal
+backups/
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- Editors / OS ----
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db

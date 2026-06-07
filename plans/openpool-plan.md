@@ -12,6 +12,15 @@ settings -> readings -> calculations -> history -> export
 
 Everything else should subscribe to that clean local source of truth.
 
+## Companion plans
+
+- [`math-plan.md`](math-plan.md) — the chemistry engine: formulas, units,
+  validation fixtures, build order.
+- [`ui-design-plan.md`](ui-design-plan.md) — the design system: visual language,
+  navigation, page-by-page UX, components, accessibility, offline/PWA, and the
+  design-to-build phasing. **Read this before building any page** — this plan
+  lists pages, that plan specifies how they look and behave.
+
 ## Goals
 
 1. **Local-first storage**
@@ -60,6 +69,33 @@ Everything else should subscribe to that clean local source of truth.
 - Requiring nodejs-poolController.
 - Building a custom Home Assistant integration before the standalone app works.
 - Building a real nodejs-poolController plugin before the standalone app works.
+
+## Cross-cutting requirements (from design review)
+
+These surfaced while writing the UI/design plan. They touch both backend and
+frontend, so they live here rather than in either companion plan:
+
+1. **Metric/imperial units are first-class.** The math plan is written in
+   gallons/lbs/°F, but a global unit setting (L/kg/°C) must flow through inputs,
+   results, charts, and exports. Store canonical units in the DB; convert at the
+   edges. Decide canonical-unit-in-DB early (recommend store-as-entered + a unit
+   field, or normalize to SI internally).
+2. **Multi-pool / spa is in the data model — make it real in the UI.** A pool
+   switcher exists from day one and renders as a plain title when there's only
+   one pool. Don't hardcode a single pool.
+3. **Timezones.** `tested_at`/`added_at` are stored UTC but entered and displayed
+   in the pool's local timezone. Add a pool/app timezone setting; don't assume
+   the container's `TZ`.
+4. **Offline-capable PWA.** The pool is often the worst-Wi-Fi spot on the
+   property. Ship installable + offline-read early; offline-write queue in
+   Phase 4–5. SQLite stays canonical; the queue is just transport.
+5. **Accessibility (WCAG AA) is a baseline, not a Phase 5 task.** Color is never
+   the only signal; charts have table fallbacks; targets ≥ 48px; keyboard +
+   screen-reader sane. Bake into component contracts.
+6. **Jug/bag-aware dosing.** Store configurable jug and bag sizes so doses can
+   read as "≈1.5 jugs" / "≈1 bag", not just raw oz/lbs.
+7. **Volume helper.** Most owners don't know their exact volume — offer a
+   shape+dimensions → volume helper in settings.
 
 ## Product shape
 
@@ -152,14 +188,23 @@ Pool calculator page:
 
 ### History `/history`
 
-History and charting:
+History ledger (tables):
 
 - reading table
 - chemical addition table
 - maintenance table
 - date filters
-- charts for FC, CC, pH, TA, CH, CYA, salt, CSI, water temperature
 - CSV/JSON export controls
+- mobile: rows collapse to stacked cards (see ui-design-plan §5.4)
+
+### Trends `/trends`
+
+Charting (split from history for clarity):
+
+- charts for FC, CC, pH, TA, CH, CYA, salt, CSI, water temperature
+- target band shaded behind each line
+- chemical-addition markers on the timeline for cause/effect
+- accessible text/table fallback for every chart
 
 ### Settings `/settings`
 
@@ -566,16 +611,23 @@ openpool/
       reading_form.html
       calculator.html
       history.html
+      trends.html
       settings.html
       share.html
     static/
+      tokens.css          # design tokens: color/type/space/themes
       app.css
       app.js
+      manifest.webmanifest # PWA
+      sw.js                # service worker
   plans/
     openpool-plan.md
+    math-plan.md
+    ui-design-plan.md
   tests/
   docs/
     formulas.md
+    ui-components.md       # component contracts for collaborators
     api.md
     deployment.md
   Dockerfile
