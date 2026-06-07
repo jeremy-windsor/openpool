@@ -35,6 +35,7 @@ Health check:
 
 ```bash
 curl http://127.0.0.1:5280/api/health
+curl http://127.0.0.1:5280/api/version
 ```
 
 If the GHCR package is private, log in on the Docker host first:

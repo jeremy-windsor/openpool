@@ -7,6 +7,7 @@ until authentication is added.
 
 ```text
 GET /api/health
+GET /api/version
 ```
 
 Returns:

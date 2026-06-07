@@ -13,6 +13,8 @@ class Settings:
     port: int
     default_pool_id: str
     default_timezone: str
+    build_sha: str
+    build_ref: str
 
 
 def get_settings() -> Settings:
@@ -23,4 +25,6 @@ def get_settings() -> Settings:
         port=int(os.getenv("OPENPOOL_PORT", "5280")),
         default_pool_id=os.getenv("OPENPOOL_DEFAULT_POOL_ID", "example"),
         default_timezone=os.getenv("OPENPOOL_TIMEZONE") or os.getenv("TZ", "UTC"),
+        build_sha=os.getenv("OPENPOOL_BUILD_SHA", "unknown"),
+        build_ref=os.getenv("OPENPOOL_BUILD_REF", "unknown"),
     )

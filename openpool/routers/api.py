@@ -4,7 +4,9 @@ from sqlite3 import Connection
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from openpool import __version__
 from openpool import db, services
+from openpool.config import get_settings
 from openpool.deps import get_db
 from openpool.schemas import AdditionIn, CalculationIn, PoolIn, PoolUpdate, ReadingIn, dump_model
 
@@ -17,8 +19,26 @@ def _not_found(pool_id: str) -> HTTPException:
 
 @router.get("/api/health")
 def health(conn: Connection = Depends(get_db)) -> dict[str, object]:
+    settings = get_settings()
     conn.execute("select 1")
-    return {"ok": True, "app": "openpool"}
+    return {
+        "ok": True,
+        "app": "openpool",
+        "version": __version__,
+        "buildSha": settings.build_sha,
+        "buildRef": settings.build_ref,
+    }
+
+
+@router.get("/api/version")
+def version() -> dict[str, object]:
+    settings = get_settings()
+    return {
+        "app": "openpool",
+        "version": __version__,
+        "buildSha": settings.build_sha,
+        "buildRef": settings.build_ref,
+    }
 
 
 @router.get("/api/pools")
