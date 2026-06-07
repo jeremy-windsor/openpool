@@ -1,0 +1,69 @@
+{
+  "note": "Public pool-chemistry reference cases. Values derived from public identities and mass conversions, not from any proprietary app. Tolerances are practical dosing tolerances.",
+  "liquid_chlorine": [
+    {
+      "name": "1 ppm FC in 10k gal at 10 percent",
+      "pool_gallons": 10000,
+      "current_fc": 4,
+      "target_fc": 5,
+      "chlorine_percent": 10,
+      "expected_fl_oz": 12.8,
+      "expected_gallons": 0.1,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "5 ppm FC in 20k gal at 12.5 percent",
+      "pool_gallons": 20000,
+      "current_fc": 1,
+      "target_fc": 6,
+      "chlorine_percent": 12.5,
+      "expected_fl_oz": 102.4,
+      "expected_gallons": 0.8,
+      "tolerance_pct": 2
+    }
+  ],
+  "dry_stabilizer": [
+    {
+      "name": "10 ppm CYA in 10k gal",
+      "pool_gallons": 10000,
+      "current_cya": 30,
+      "target_cya": 40,
+      "expected_oz_weight": 13.4,
+      "expected_pounds": 0.83,
+      "tolerance_pct": 2
+    }
+  ],
+  "salt": [
+    {
+      "name": "1000 ppm salt in 10k gal",
+      "pool_gallons": 10000,
+      "current_salt": 2200,
+      "target_salt": 3200,
+      "expected_pounds": 83.5,
+      "expected_bags": 2.09,
+      "tolerance_pct": 2
+    }
+  ],
+  "fc_cya_targets": [
+    {
+      "name": "liquid chlorine, CYA 35 rounds up to 40 bucket",
+      "sanitizer": "liquid_chlorine",
+      "cya": 35,
+      "expected_bucket": 40,
+      "expected_minimum": 3,
+      "expected_target_low": 5,
+      "expected_target_high": 7,
+      "expected_slam": 16
+    },
+    {
+      "name": "swg, CYA 70 bucket",
+      "sanitizer": "swg",
+      "cya": 70,
+      "expected_bucket": 70,
+      "expected_minimum": 3,
+      "expected_target_low": 5,
+      "expected_target_high": 6,
+      "expected_slam": 28
+    }
+  ]
+}

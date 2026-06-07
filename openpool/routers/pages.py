@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sqlite3 import Connection
 from pathlib import Path
+from sqlite3 import Connection
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request

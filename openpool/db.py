@@ -5,7 +5,7 @@ import secrets
 import sqlite3
 import uuid
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -173,7 +173,11 @@ NUMERIC_FIELDS = {
 def connect(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    # check_same_thread=False: FastAPI runs sync dependency generators in a
+    # threadpool, so an async route may touch the connection from the event-loop
+    # thread. Each request still gets its own connection, so there is no shared
+    # concurrent use.
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("pragma foreign_keys = on")
     conn.execute("pragma journal_mode = wal")
@@ -188,7 +192,7 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 
 def now_utc() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def validate_timezone_name(timezone_name: str | None) -> str:
@@ -214,7 +218,7 @@ def normalize_timestamp(value: str | None, timezone_name: str = "UTC") -> str:
         raise ValueError(f"invalid timestamp: {text}") from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=ZoneInfo(validate_timezone_name(timezone_name)))
-    return parsed.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return parsed.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def local_timestamp(value: str | None, timezone_name: str = "UTC") -> str | None:
@@ -262,7 +266,7 @@ def generate_share_token() -> str:
 def _validate_share_token(data: dict[str, Any]) -> None:
     enabled = data.get("share_enabled")
     token = data.get("share_token")
-    if enabled in {1, True, "1", "true", "on"}:
+    if enabled in {1, "1", "true", "on"}:
         if not token:
             data["share_token"] = generate_share_token()
             return
@@ -282,7 +286,7 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
             if not isfinite(value):
                 raise ValueError(f"{key} must be a finite number")
         if key in {"share_enabled", "include_notes_in_share"} and value is not None:
-            value = 1 if value in {True, "true", "1", "on", 1} else 0
+            value = 1 if value in {True, "true", "1", "on"} else 0
         cleaned[key] = value
     return cleaned
 

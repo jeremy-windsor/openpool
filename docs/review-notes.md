@@ -34,7 +34,6 @@ Remaining risks:
 - API write endpoints remain open to clients that can reach the service.
 - Share tokens are stored in SQLite as plaintext until auth/secrets handling exists.
 - No rate limiting yet.
-- No CI yet.
 
 ## Adversarial Review
 
@@ -50,8 +49,9 @@ Findings addressed:
 
 Known gaps:
 
-- Runtime route tests were not run on this host because Docker is absent and FastAPI/Uvicorn/Jinja are not installed.
-- Tests were intentionally kept in ignored local scratch per task instruction, so the repo still has no committed test suite.
+- A committed `tests/` suite (chemistry + persistence + FastAPI routes, 32
+  tests) now runs in GitHub Actions and gates the container build. Route tests
+  surfaced and fixed a SQLite cross-thread bug in async page routes.
 - Metric support is not implemented beyond the stored preference.
 - Maintenance event UI/API/export and settings-history logging are still future work.
 - Authentication is the next hardening step before any non-local exposure.

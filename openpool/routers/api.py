@@ -4,8 +4,7 @@ from sqlite3 import Connection
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from openpool import __version__
-from openpool import db, services
+from openpool import __version__, db, services
 from openpool.config import get_settings
 from openpool.deps import get_db
 from openpool.schemas import AdditionIn, CalculationIn, PoolIn, PoolUpdate, ReadingIn, dump_model

@@ -49,6 +49,19 @@ uv run uvicorn openpool.main:app --reload --host 127.0.0.1 --port 5280
 This repository does not vendor dependencies. A host needs either Docker or the
 Python dependencies from `pyproject.toml` installed in an environment.
 
+## Tests and linting
+
+```bash
+uv sync --extra dev
+uv run ruff check .
+uv run pytest -q
+```
+
+The committed suite under `tests/` covers the chemistry engine (with public
+reference fixtures in `tests/fixtures/`), SQLite persistence, and FastAPI
+routes. GitHub Actions runs ruff and pytest on every push and pull request, and
+the container image only publishes after that job passes.
+
 Published GHCR image, after the GitHub Actions build has run:
 
 ```bash

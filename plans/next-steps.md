@@ -88,14 +88,25 @@ Do not assume that test data belongs in examples, docs, exports, or fixtures.
 
 ### Test and CI
 
-- No committed test suite yet.
-- Local scratch tests exist under `.codex-local-tests/`, intentionally ignored
-  from git per the previous task instruction.
-- GitHub Actions currently builds/publishes Docker images but does not run
-  Python tests, route tests, lint, or type checks.
+Done (Phase 1-2 finalization):
 
-This is the next thing to fix. Chemistry without committed tests is a rake
-collection.
+- Committed suite under `tests/`: chemistry (with public reference fixtures in
+  `tests/fixtures/public_reference_examples.json`), SQLite persistence, and
+  FastAPI route tests. 32 tests passing.
+- GitHub Actions now runs `ruff check` and `pytest` in a `test` job; the image
+  `build` job `needs: test`, so a red suite blocks publishing.
+- Ruff is clean (`B008` is ignored as the FastAPI `Depends()` idiom).
+- Fixed a real bug found by the route tests: async page routes
+  (`save_reading`, `save_addition`, `save_settings`) received their SQLite
+  connection from a threadpool dependency but ran on the event-loop thread, so
+  `check_same_thread=True` raised. `db.connect` now uses
+  `check_same_thread=False` (each request still has its own connection).
+
+Still open:
+
+- No type checking (mypy/pyright) in CI yet.
+- `.codex-local-tests/` scratch coverage is superseded by `tests/` and can be
+  removed when convenient.
 
 ### Security
 
@@ -152,11 +163,7 @@ Still missing from the math plan:
 
 ## Recommended Next Build Order
 
-1. **Promote tests into the repo**
-   - Add `tests/` with formula tests and API/route smoke tests.
-   - Move useful `.codex-local-tests/` coverage into committed tests.
-   - Add golden fixture JSON for public reference chemistry cases.
-   - Update GitHub Actions so Docker publishing depends on tests passing.
+1. **Promote tests into the repo** — DONE. See the Test and CI section above.
 
 2. **Add edit/delete workflows**
    - Edit reading.

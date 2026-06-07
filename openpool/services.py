@@ -4,12 +4,79 @@ import sqlite3
 from hmac import compare_digest
 from typing import Any
 
-from openpool import __version__
-from openpool import db
+from openpool import __version__, db
 from openpool.chemistry.chlorine import dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
 from openpool.chemistry.salt import dose_salt_for_ppm
 from openpool.chemistry.targets import fc_cya_targets
+
+# Typical balanced ranges used only to give an at-a-glance status hint on the
+# dashboard. These are general pool-care comfort ranges, not precise targets;
+# FC and CYA use the dedicated target logic instead.
+TYPICAL_RANGES: dict[str, tuple[float | None, float | None]] = {
+    "cc": (None, 0.5),
+    "ph": (7.2, 7.8),
+    "ta": (60, 120),
+    "ch": (250, 650),
+    "csi": (-0.3, 0.3),
+}
+
+
+def _classify(value: float | None, low: float | None, high: float | None) -> str:
+    if value is None or (low is None and high is None):
+        return "none"
+    if low is not None and value < low:
+        return "low"
+    if high is not None and value > high:
+        return "high"
+    return "ok"
+
+
+def _range_text(low: float | None, high: float | None) -> str | None:
+    if low is not None and high is not None:
+        return f"{low:g}-{high:g}"
+    if high is not None:
+        return f"<= {high:g}"
+    if low is not None:
+        return f">= {low:g}"
+    return None
+
+
+def reading_tiles(
+    reading: dict[str, Any] | None,
+    targets: Any,
+    sanitizer: str,
+) -> list[dict[str, Any]]:
+    """Build dashboard/share status tiles with target context per metric."""
+
+    def value(key: str) -> float | None:
+        return reading.get(key) if reading else None
+
+    is_swg = sanitizer.lower() in {"swg", "salt_water_generator"}
+    cya_low, cya_high = (60, 80) if is_swg else (30, 60)
+    salt_low, salt_high = (2700, 3400) if is_swg else (None, None)
+
+    specs = [
+        ("fc", "FC", "ppm", value("fc"), targets.target_low, targets.target_high),
+        ("cc", "CC", "ppm", value("cc"), *TYPICAL_RANGES["cc"]),
+        ("ph", "pH", "", value("ph"), *TYPICAL_RANGES["ph"]),
+        ("ta", "TA", "ppm", value("ta"), *TYPICAL_RANGES["ta"]),
+        ("ch", "CH", "ppm", value("ch"), *TYPICAL_RANGES["ch"]),
+        ("cya", "CYA", "ppm", value("cya"), cya_low, cya_high),
+        ("salt", "Salt", "ppm", value("salt"), salt_low, salt_high),
+        ("csi", "CSI", "", value("csi"), *TYPICAL_RANGES["csi"]),
+    ]
+    return [
+        {
+            "key": key,
+            "label": label,
+            "unit": unit,
+            "value": val,
+            "state": _classify(val, low, high),
+            "range": _range_text(low, high),
+        }
+        for key, label, unit, val, low, high in specs
+    ]
 
 
 def _overview(reading: dict[str, Any] | None, include_notes: bool = False) -> dict[str, Any] | None:
@@ -157,6 +224,7 @@ def build_snapshot(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any]:
         },
         "status": status_summary(pool, latest),
         "overview": overview,
+        "tiles": reading_tiles(latest, targets, pool.get("sanitizer") or "liquid_chlorine"),
         "targets": targets.to_dict(),
         "recommendations": recommended_actions(pool, latest),
         "recentAdditions": [
