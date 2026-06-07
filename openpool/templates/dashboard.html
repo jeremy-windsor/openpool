@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero-status status-{{ snapshot.status.level }}">
+  <p class="status-label">{{ snapshot.status.text }}</p>
+  {% if snapshot.overview %}
+    <p class="muted">Tested {{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}</p>
+  {% else %}
+    <p class="muted">Start by adding the first manual reading.</p>
+  {% endif %}
+</section>
+
+{% if snapshot.recommendations %}
+<section>
+  <h1>Recommended</h1>
+  {% for action in snapshot.recommendations %}
+  <article class="card status-{{ action.severity }}">
+    <h2>{{ action.title }}</h2>
+    <p>{{ action.summary }}</p>
+    <details>
+      <summary>Show math</summary>
+      <p>{{ action.why }}</p>
+    </details>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section>
+  <div class="section-head">
+    <h1>Readings</h1>
+    <a class="button" href="/readings/new">Add reading</a>
+  </div>
+  {% if snapshot.overview %}
+  <div class="reading-grid">
+    <article class="reading-tile"><span>FC</span><strong>{{ snapshot.overview.fc if snapshot.overview.fc is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>CC</span><strong>{{ snapshot.overview.cc if snapshot.overview.cc is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>pH</span><strong>{{ snapshot.overview.ph if snapshot.overview.ph is not none else "-" }}</strong><small></small></article>
+    <article class="reading-tile"><span>TA</span><strong>{{ snapshot.overview.ta if snapshot.overview.ta is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>CH</span><strong>{{ snapshot.overview.ch if snapshot.overview.ch is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>CYA</span><strong>{{ snapshot.overview.cya if snapshot.overview.cya is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>Salt</span><strong>{{ snapshot.overview.salt if snapshot.overview.salt is not none else "-" }}</strong><small>ppm</small></article>
+    <article class="reading-tile"><span>CSI</span><strong>{{ snapshot.overview.csi if snapshot.overview.csi is not none else "-" }}</strong><small></small></article>
+  </div>
+  {% else %}
+  <article class="empty">
+    <h1>No readings yet</h1>
+    <p>Log the first test and the dashboard will start doing useful work.</p>
+    <a class="button" href="/readings/new">Add first reading</a>
+  </article>
+  {% endif %}
+</section>
+
+<section>
+  <div class="section-head">
+    <h1>Recent Additions</h1>
+    <a class="button" href="/additions/new">Log dose</a>
+  </div>
+  {% if snapshot.recentAdditions %}
+  <ul class="ledger">
+    {% for addition in snapshot.recentAdditions %}
+    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.addedAt }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No additions logged yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

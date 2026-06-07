@@ -1,0 +1,24 @@
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    OPENPOOL_DB=/data/openpool.sqlite \
+    OPENPOOL_HOST=0.0.0.0 \
+    OPENPOOL_PORT=5280
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY openpool ./openpool
+
+RUN pip install --no-cache-dir . \
+    && adduser --disabled-password --gecos "" --home /nonexistent openpool \
+    && mkdir -p /data \
+    && chown -R openpool:openpool /data
+
+USER openpool
+
+EXPOSE 5280
+
+CMD ["uvicorn", "openpool.main:app", "--host", "0.0.0.0", "--port", "5280"]
+

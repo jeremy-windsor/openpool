@@ -602,7 +602,7 @@ Share token examples:
 
 ```text
 openpool/
-  app/
+  openpool/
     __init__.py
     main.py
     config.py

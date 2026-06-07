@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <h1>Calculator</h1>
+  <form method="get" action="/calculator" class="form-card">
+    <label>Goal
+      <select name="goal">
+        <option value="raise_fc" {% if goal == "raise_fc" %}selected{% endif %}>Raise FC</option>
+        <option value="raise_cya" {% if goal == "raise_cya" %}selected{% endif %}>Raise CYA</option>
+        <option value="raise_salt" {% if goal == "raise_salt" %}selected{% endif %}>Raise salt</option>
+      </select>
+    </label>
+    <label>Current
+      <input name="current" inputmode="decimal" value="{{ current or '' }}">
+    </label>
+    <label>Target
+      <input name="target" inputmode="decimal" value="{{ target or '' }}">
+    </label>
+    <label>Pool volume
+      <input name="pool_gallons" inputmode="decimal" value="{{ pool_gallons or pool.volume_gallons }}">
+      <small>gallons</small>
+    </label>
+    <label>Product strength percent (FC only)
+      <input name="strength" inputmode="decimal" value="{{ strength or pool.default_chlorine_percent }}">
+    </label>
+    <button class="button primary" type="submit">Calculate</button>
+  </form>
+</section>
+
+{% if result %}
+<section>
+  <article class="dose-card">
+    <h1>Add {{ result.dose.amount }} {{ result.dose.unit.replace("_", " ") }}</h1>
+    <p class="muted">{{ result.dose.chemical.replace("_", " ") }}</p>
+    <a class="button" href="/additions/new">Log this dose</a>
+    {% if result.dose.secondary %}
+    <ul>
+      {% for name, value in result.dose.secondary.items() %}
+      <li>{{ value }} {{ name }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if result.dose.warnings %}
+    <details>
+      <summary>Warnings</summary>
+      <ul>
+      {% for warning in result.dose.warnings %}
+        <li>{{ warning }}</li>
+      {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    <details>
+      <summary>Show math</summary>
+      <p><strong>Formula:</strong> {{ result.dose.formula }}</p>
+      <p><strong>Source:</strong> {{ result.dose.sourceNote }}</p>
+      <p><strong>Confidence:</strong> {{ result.dose.confidence }}</p>
+      {% if result.dose.assumptions %}
+      <ul>
+      {% for assumption in result.dose.assumptions %}
+        <li>{{ assumption }}</li>
+      {% endfor %}
+      </ul>
+      {% endif %}
+    </details>
+  </article>
+</section>
+{% endif %}
+{% endblock %}

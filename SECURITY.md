@@ -2,7 +2,7 @@
 
 ## Current status
 
-This project is in planning stage. Do not deploy it as a public internet service yet.
+This project is in early implementation. Do not deploy it as a public internet service yet.
 
 ## Safety boundaries
 
@@ -15,6 +15,10 @@ This project is in planning stage. Do not deploy it as a public internet service
 - Keep share endpoints read-only.
 - Do not expose private notes through share JSON unless explicitly configured.
 - Do not store secrets in exports.
+- Keep pool IDs constrained to simple URL-safe identifiers.
+- Treat the default deployment as trusted-LAN only until authentication ships.
+- Bind the sample compose deployment to localhost by default.
+- Require read-only share endpoints to be explicitly enabled with a token.
 
 ## Reporting vulnerabilities
 

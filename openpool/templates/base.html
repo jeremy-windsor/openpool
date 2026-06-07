@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0E7CA6">
+    <title>{{ title }} - openpool</title>
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="stylesheet" href="/static/tokens.css">
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">openpool</a>
+      <nav class="topnav" aria-label="Secondary">
+        <a href="/settings">Settings</a>
+        <a href="/api/health">Health</a>
+      </nav>
+    </header>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+    <nav class="bottomnav" aria-label="Primary">
+      <a href="/">Home</a>
+      <a href="/history">History</a>
+      <a class="nav-primary" href="/readings/new">Add</a>
+      <a href="/additions/new">Dose</a>
+      <a href="/calculator">Calc</a>
+    </nav>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

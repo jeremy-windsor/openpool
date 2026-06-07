@@ -21,13 +21,46 @@ Self-hosted pool chemistry logbook and calculator.
 
 ## Status
 
-Planning stage. No production code yet.
+Early implementation. The repository now contains the first FastAPI + SQLite
+slice: pool profile storage, manual reading entry, reading history, CSV export,
+share JSON, and initial chlorine/CYA/salt calculations.
+
+## Run locally
+
+Docker:
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:5280
+```
+
+Python development environment:
+
+```bash
+uv sync --extra dev
+uv run uvicorn openpool.main:app --reload --host 127.0.0.1 --port 5280
+```
+
+This repository does not vendor dependencies. A host needs either Docker or the
+Python dependencies from `pyproject.toml` installed in an environment.
 
 See:
 
 - [`plans/openpool-plan.md`](plans/openpool-plan.md)
 - [`plans/math-plan.md`](plans/math-plan.md)
 - [`plans/ui-design-plan.md`](plans/ui-design-plan.md)
+
+Implementation docs:
+
+- [`docs/formulas.md`](docs/formulas.md)
+- [`docs/api.md`](docs/api.md)
+- [`docs/deployment.md`](docs/deployment.md)
+- [`docs/review-notes.md`](docs/review-notes.md)
 
 ## Security / licensing note
 

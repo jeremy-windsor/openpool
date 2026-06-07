@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ snapshot.pool.name }} - openpool</title>
+    <link rel="stylesheet" href="/static/tokens.css">
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body class="share-page">
+    <main class="page">
+      <section class="hero-status status-{{ snapshot.status.level }}">
+        <h1>{{ snapshot.pool.name }}</h1>
+        <p class="status-label">{{ snapshot.status.text }}</p>
+        {% if snapshot.overview %}
+        <p class="muted">Tested {{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}</p>
+        {% endif %}
+      </section>
+      {% if snapshot.overview %}
+      <section class="reading-grid">
+        <article class="reading-tile"><span>FC</span><strong>{{ snapshot.overview.fc if snapshot.overview.fc is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>CC</span><strong>{{ snapshot.overview.cc if snapshot.overview.cc is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>pH</span><strong>{{ snapshot.overview.ph if snapshot.overview.ph is not none else "-" }}</strong></article>
+        <article class="reading-tile"><span>TA</span><strong>{{ snapshot.overview.ta if snapshot.overview.ta is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>CH</span><strong>{{ snapshot.overview.ch if snapshot.overview.ch is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>CYA</span><strong>{{ snapshot.overview.cya if snapshot.overview.cya is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>Salt</span><strong>{{ snapshot.overview.salt if snapshot.overview.salt is not none else "-" }}</strong><small>ppm</small></article>
+        <article class="reading-tile"><span>CSI</span><strong>{{ snapshot.overview.csi if snapshot.overview.csi is not none else "-" }}</strong></article>
+      </section>
+      {% endif %}
+      <footer class="muted">openpool</footer>
+    </main>
+  </body>
+</html>

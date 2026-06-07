@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <h1>New Addition</h1>
+  <form method="post" action="/additions/new" class="form-card">
+    <label>Added at
+      <input name="added_at" type="datetime-local">
+    </label>
+    <label>Chemical
+      <select name="chemical">
+        <option value="liquid_chlorine">Liquid chlorine</option>
+        <option value="dry_stabilizer">Dry stabilizer</option>
+        <option value="salt">Salt</option>
+        <option value="calcium_chloride">Calcium chloride</option>
+        <option value="muriatic_acid">Muriatic acid</option>
+        <option value="baking_soda">Baking soda</option>
+      </select>
+    </label>
+    <div class="form-grid">
+      <label>Amount
+        <input name="amount" inputmode="decimal">
+      </label>
+      <label>Unit
+        <select name="unit">
+          <option value="fl_oz">fl oz</option>
+          <option value="gal">gal</option>
+          <option value="oz_weight">oz weight</option>
+          <option value="lb">lb</option>
+        </select>
+      </label>
+      <label>Strength
+        <input name="strength_percent" inputmode="decimal">
+        <small>percent, if relevant</small>
+      </label>
+    </div>
+    <label>Reason
+      <input name="reason">
+    </label>
+    <label>Notes
+      <textarea name="notes" rows="3"></textarea>
+    </label>
+    <button class="button primary" type="submit">Save addition</button>
+  </form>
+</section>
+{% endblock %}

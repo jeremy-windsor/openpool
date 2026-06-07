@@ -1,0 +1,279 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--brand-700);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  color: var(--brand-900);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.topnav,
+.bottomnav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topnav a,
+.bottomnav a {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 650;
+}
+
+.page {
+  width: min(100%, 960px);
+  margin: 0 auto;
+  padding: 18px 16px 92px;
+}
+
+section {
+  margin-bottom: 24px;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 18px;
+}
+
+.muted {
+  color: var(--text-dim);
+}
+
+.hero-status,
+.card,
+.empty,
+.reading-tile,
+.form-card,
+.dose-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 3px rgba(7,58,79,.08), 0 1px 2px rgba(7,58,79,.06);
+}
+
+.hero-status {
+  padding: 18px;
+}
+
+.status-label {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.status-good {
+  background: var(--good-bg);
+  border-color: var(--good-700);
+}
+
+.status-caution {
+  background: var(--caution-bg);
+  border-color: var(--caution-800);
+}
+
+.status-danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-700);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button,
+button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  border: 1px solid var(--brand-600);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--brand-700);
+  font: inherit;
+  font-weight: 750;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button.primary,
+button.primary,
+.nav-primary {
+  background: var(--brand-600);
+  color: #fff!important;
+}
+
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reading-tile {
+  min-height: 112px;
+  padding: 14px;
+  display: grid;
+  align-content: space-between;
+}
+
+.reading-tile span,
+.reading-tile small {
+  color: var(--text-dim);
+}
+
+.reading-tile strong {
+  font-size: 36px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-card,
+.dose-card,
+.empty,
+.card {
+  padding: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-row input {
+  width: 24px;
+  min-height: 24px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+th,
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.ledger {
+  padding-left: 0;
+  list-style: none;
+}
+
+.ledger li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bottomnav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  justify-content: space-around;
+  padding: 8px 10px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.share-page .page {
+  padding-bottom: 24px;
+}
+
+@media (min-width: 720px) {
+  .reading-grid,
+  .form-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

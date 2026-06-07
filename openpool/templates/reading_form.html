@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <h1>New Reading</h1>
+  <form method="post" action="/readings/new" class="form-card">
+    <label>Tested at
+      <input name="tested_at" type="datetime-local">
+    </label>
+    <div class="form-grid">
+      <label>FC
+        <input name="fc" inputmode="decimal" value="{{ latest.fc if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>CC
+        <input name="cc" inputmode="decimal" value="{{ latest.cc if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>pH
+        <input name="ph" inputmode="decimal" value="{{ latest.ph if latest else '' }}">
+      </label>
+      <label>TA
+        <input name="ta" inputmode="decimal" value="{{ latest.ta if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>CH
+        <input name="ch" inputmode="decimal" value="{{ latest.ch if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>CYA
+        <input name="cya" inputmode="decimal" value="{{ latest.cya if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>Salt
+        <input name="salt" inputmode="decimal" value="{{ latest.salt if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>Borates
+        <input name="borates" inputmode="decimal" value="{{ latest.borates if latest else '' }}">
+        <small>ppm</small>
+      </label>
+      <label>Water temp
+        <input name="water_temp_f" inputmode="decimal" value="{{ latest.water_temp_f if latest else '' }}">
+        <small>deg F</small>
+      </label>
+      <label>Filter pressure
+        <input name="filter_pressure" inputmode="decimal" value="{{ latest.filter_pressure if latest else '' }}">
+        <small>psi</small>
+      </label>
+    </div>
+    <label>Notes
+      <textarea name="notes" rows="3"></textarea>
+    </label>
+    <button class="button primary" type="submit">Save reading</button>
+  </form>
+</section>
+{% endblock %}
+

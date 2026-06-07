@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <div class="section-head">
+    <h1>History</h1>
+    <div class="button-row">
+      <a class="button" href="/api/pools/{{ pool_id }}/export/readings.csv">Readings CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/additions.csv">Additions CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/all.json">Backup JSON</a>
+    </div>
+  </div>
+  {% if readings %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tested</th><th>FC</th><th>CC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Salt</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in readings %}
+        <tr>
+          <td>{{ row.tested_at_local or row.tested_at }}</td>
+          <td>{{ row.fc if row.fc is not none else "" }}</td>
+          <td>{{ row.cc if row.cc is not none else "" }}</td>
+          <td>{{ row.ph if row.ph is not none else "" }}</td>
+          <td>{{ row.ta if row.ta is not none else "" }}</td>
+          <td>{{ row.ch if row.ch is not none else "" }}</td>
+          <td>{{ row.cya if row.cya is not none else "" }}</td>
+          <td>{{ row.salt if row.salt is not none else "" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <article class="empty">
+    <h1>No history yet</h1>
+    <p>Readings will land here after you save them.</p>
+  </article>
+  {% endif %}
+</section>
+
+<section>
+  <div class="section-head">
+    <h1>Additions</h1>
+    <a class="button" href="/additions/new">Log dose</a>
+  </div>
+  {% if additions %}
+  <ul class="ledger">
+    {% for addition in additions %}
+    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.added_at }}</span></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No additions logged yet.</p>
+  {% endif %}
+</section>
+{% endblock %}
