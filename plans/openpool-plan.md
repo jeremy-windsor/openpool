@@ -4,6 +4,10 @@
 
 Build **openpool**: a local-first, Docker-hosted pool chemistry logbook and calculator with SQLite storage, a mobile-friendly web app, CSV/JSON export, and optional exports to Home Assistant and nodejs-poolController.
 
+> **Name:** the slug is `openpool` (one word) — used for the repo, Docker image,
+> and Python package (import names can't contain hyphens, so `open-pool` is out).
+> It may be styled "OpenPool" in UI/branding, but the identifier stays `openpool`.
+
 The useful product is simple:
 
 ```text
@@ -75,17 +79,32 @@ Everything else should subscribe to that clean local source of truth.
 These surfaced while writing the UI/design plan. They touch both backend and
 frontend, so they live here rather than in either companion plan:
 
-1. **Metric/imperial units are first-class.** The math plan is written in
-   gallons/lbs/°F, but a global unit setting (L/kg/°C) must flow through inputs,
-   results, charts, and exports. Store canonical units in the DB; convert at the
-   edges. Decide canonical-unit-in-DB early (recommend store-as-entered + a unit
-   field, or normalize to SI internally).
-2. **Multi-pool / spa is in the data model — make it real in the UI.** A pool
-   switcher exists from day one and renders as a plain title when there's only
-   one pool. Don't hardcode a single pool.
-3. **Timezones.** `tested_at`/`added_at` are stored UTC but entered and displayed
-   in the pool's local timezone. Add a pool/app timezone setting; don't assume
-   the container's `TZ`.
+1. **Both metric and US units, user-selectable.** Support gallons/lbs/°F *and*
+   L/kg/°C — the user picks; the app is not US-only. A global unit setting flows
+   through inputs, results, charts, and exports. Store canonical units in the DB
+   and convert at the edges (recommend: normalize to SI internally, or
+   store-as-entered + a unit field). The unit preference is app-wide for now and
+   becomes a per-user preference once users exist (see #2).
+2. **Single-user, no auth for now — but built so users can be added later.**
+   v1 ships with no login and no `users` table; the deployment is trusted-LAN,
+   single operator. Design choices must not block a future multi-user model:
+   - **Pools are already multi-capable** — keep `pool_id` on every row and ship
+     the pool switcher (renders as a plain title with one pool). Don't hardcode a
+     single pool.
+   - **Reserve the attribution seam** — plan for a future nullable `logged_by`
+     (user id) on readings/additions, but do **not** build it yet. Leaving the
+     column out now is fine; just don't design anything that would make adding it
+     a painful migration.
+   - **Future model (not now):** a `users` table + a `pool_members`
+     (user_id, pool_id, role) join table is the intended growth path —
+     household-shared or owner/editor/viewer sharing. Decide that when the need
+     is real; v1 stays single-user.
+   - The existing optional LAN password (see Security model) remains the only
+     access control in v1.
+3. **Timezones — local time, configurable.** `tested_at`/`added_at` are stored
+   UTC but entered and displayed in local time. The timezone is a configurable
+   app/pool setting (don't just assume the container's `TZ`); default to a sane
+   local zone and let the user override it.
 4. **Offline-capable PWA.** The pool is often the worst-Wi-Fi spot on the
    property. Ship installable + offline-read early; offline-write queue in
    Phase 4–5. SQLite stays canonical; the queue is just transport.

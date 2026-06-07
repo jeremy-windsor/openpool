@@ -493,17 +493,27 @@ Maps onto the build phases in `openpool-plan.md`:
 
 ---
 
-## 14. Open design questions (decide before/at Phase 0)
+## 14. Decided
+
+- **User model (v1):** single-user, **no login**. No account UI, no "who logged
+  this" attribution in v1. Trusted-LAN, single operator. The UI must not *assume*
+  single-user permanently though — the pool switcher ships now, and nothing in
+  the layout should make adding accounts later a redesign (see openpool-plan
+  cross-cutting #2).
+- **Multi-pool:** ship the pool switcher from day one; render it as a plain title
+  when there's only one pool.
+- **Units:** support **both** US and metric, user-selectable in Settings (app-wide
+  now, per-user later). Default by locale detection with a manual override.
+- **Timezone:** local time, configurable in Settings.
+
+## 15. Open design questions (decide before/at Phase 0)
 
 1. **Icon set** — Lucide vs. inline custom SVGs (favor inline for offline/no
    dependency).
 2. **Chart library** — Chart.js (named in plan) is fine; confirm it can render
    the target-band shading + addition markers cleanly, else consider a
    lightweight SVG approach.
-3. **Multi-pool prominence** — ship the pool switcher in the top bar from day
-   one (data model supports it), or hide until a 2nd pool exists? Recommend:
-   build it, render-as-title when there's one pool.
-4. **Volume helper depth** — simple shapes (rect/round/oval) in v1; irregular
+3. **Volume helper depth** — simple shapes (rect/round/oval) in v1; irregular
    shapes later.
-5. **Metric default** — detect from locale, or default imperial with easy
-   toggle? Recommend locale-detect with override.
+4. **Canonical units in the DB** — normalize to SI internally vs.
+   store-as-entered + unit field (ties to openpool-plan cross-cutting #1).
