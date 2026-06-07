@@ -49,6 +49,16 @@ uv run uvicorn openpool.main:app --reload --host 127.0.0.1 --port 5280
 This repository does not vendor dependencies. A host needs either Docker or the
 Python dependencies from `pyproject.toml` installed in an environment.
 
+Published GHCR image, after the GitHub Actions build has run:
+
+```bash
+docker compose -f docker-compose.ghcr.yml pull
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+The compose files bind to `127.0.0.1` by default. Keep it behind localhost,
+SSH tunnel, VPN, or a trusted reverse proxy until authentication exists.
+
 See:
 
 - [`plans/openpool-plan.md`](plans/openpool-plan.md)

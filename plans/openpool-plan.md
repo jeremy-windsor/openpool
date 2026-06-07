@@ -657,6 +657,35 @@ openpool/
 
 ## Build phases
 
+## Container Publishing and Deployment Policy
+
+All build/test/deploy phases use the same container rule:
+
+- Every pull request and push to `main` must build the Docker image in GitHub
+  Actions.
+- Pushes to `main` publish `ghcr.io/jeremy-windsor/openpool:latest` and a
+  short-SHA tag.
+- Version tags like `v0.1.0` publish matching semver tags such as `0.1.0`.
+- Docker Hub is not part of the default release path; use GHCR unless there is
+  a concrete reason to add another registry.
+- Deployment from a Docker host should prefer the published GHCR image once it
+  exists, not a manual repo checkout and local build.
+- The sample published-image compose file remains bound to `127.0.0.1`.
+- Until authentication ships, any testing exposure must be localhost, SSH
+  tunnel, VPN, or a trusted LAN/VLAN. Do not expose openpool directly to the
+  public internet.
+- Any future phase that adds public or semi-public exposure must add auth,
+  token handling, rate limiting, and reverse-proxy guidance before that exposure
+  is considered supported.
+
+Verification for every phase:
+
+- Local source build still works with `docker compose up --build`.
+- Published-image deployment works with
+  `docker compose -f docker-compose.ghcr.yml up -d`.
+- `/api/health` returns OK from the intended access path.
+- The service is not reachable from an unintended public interface.
+
 ### Phase 0 — skeleton
 
 Deliverables:
@@ -664,12 +693,14 @@ Deliverables:
 - FastAPI skeleton.
 - SQLite initialization.
 - Docker compose.
+- GHCR publish workflow.
 - `/api/health`.
 - Basic dashboard page.
 
 Verification:
 
 - `docker compose up` works.
+- GitHub Actions builds the Docker image.
 - `/api/health` returns OK.
 
 ### Phase 1 — settings and logbook
