@@ -26,6 +26,7 @@ Planning stage. No production code yet.
 See:
 
 - [`plans/openpool-plan.md`](plans/openpool-plan.md)
+- [`plans/math-plan.md`](plans/math-plan.md)
 
 ## Security / licensing note
 
