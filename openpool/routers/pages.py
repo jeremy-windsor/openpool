@@ -43,12 +43,9 @@ def dashboard(request: Request, conn: Connection = Depends(get_db)):
     pool_id = _pool_id()
     snapshot = services.build_snapshot(conn, pool_id)
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "title": "Dashboard",
-            "snapshot": snapshot,
-        },
+        request=request,
+        name="dashboard.html",
+        context={"title": "Dashboard", "snapshot": snapshot},
     )
 
 
@@ -57,8 +54,9 @@ def new_reading(request: Request, conn: Connection = Depends(get_db)):
     pool_id = _pool_id()
     latest = db.latest_reading(conn, pool_id)
     return templates.TemplateResponse(
-        "reading_form.html",
-        {"request": request, "title": "New reading", "pool_id": pool_id, "latest": latest},
+        request=request,
+        name="reading_form.html",
+        context={"title": "New reading", "pool_id": pool_id, "latest": latest},
     )
 
 
@@ -77,8 +75,9 @@ async def save_reading(request: Request, conn: Connection = Depends(get_db)):
 @router.get("/additions/new")
 def new_addition(request: Request):
     return templates.TemplateResponse(
-        "addition_form.html",
-        {"request": request, "title": "New addition"},
+        request=request,
+        name="addition_form.html",
+        context={"title": "New addition"},
     )
 
 
@@ -103,9 +102,9 @@ def history(request: Request, conn: Connection = Depends(get_db)):
     for row in readings:
         row["tested_at_local"] = db.local_timestamp(row.get("tested_at"), timezone_name)
     return templates.TemplateResponse(
-        "history.html",
-        {
-            "request": request,
+        request=request,
+        name="history.html",
+        context={
             "title": "History",
             "pool_id": pool_id,
             "readings": readings,
@@ -146,9 +145,9 @@ def calculator(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return templates.TemplateResponse(
-        "calculator.html",
-        {
-            "request": request,
+        request=request,
+        name="calculator.html",
+        context={
             "title": "Calculator",
             "pool": pool,
             "goal": goal,
@@ -166,8 +165,9 @@ def settings_page(request: Request, conn: Connection = Depends(get_db)):
     pool_id = _pool_id()
     pool = db.get_pool(conn, pool_id)
     return templates.TemplateResponse(
-        "settings.html",
-        {"request": request, "title": "Settings", "pool": pool},
+        request=request,
+        name="settings.html",
+        context={"title": "Settings", "pool": pool},
     )
 
 
@@ -207,6 +207,7 @@ def share_page(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}") from exc
     return templates.TemplateResponse(
-        "share.html",
-        {"request": request, "title": "Share", "snapshot": snapshot},
+        request=request,
+        name="share.html",
+        context={"title": "Share", "snapshot": snapshot},
     )
