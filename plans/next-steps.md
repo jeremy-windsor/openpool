@@ -3,15 +3,17 @@
 Date: 2026-06-07
 
 This is the handoff note for the next implementation chat. The repo has moved
-from planning-only to an early runnable MVP. The next work should harden the
-foundation before piling on chemistry and UI features.
+from planning-only to an early runnable MVP with committed tests and a gated
+GHCR image build. The next work should finish the required chemistry, dosing,
+and logbook core before adding sharing, multi-user behavior, or public
+exposure.
 
 ## Current State
 
 `main` is synced with GitHub at:
 
 ```text
-2717771 Expose build metadata
+c4aa4538296c Finalize Phase 1-2: commit tests, gate CI on them, fix sqlite threading, add dashboard target tiles
 ```
 
 The GHCR image is built and published by GitHub Actions:
@@ -117,7 +119,8 @@ Still open:
 - No secure cookie/session story.
 - App is suitable only for localhost, SSH tunnel, VPN, or trusted LAN testing.
 
-Do not add public exposure before auth and proxy guidance are designed.
+Do not add public exposure before auth and proxy guidance are designed. Full
+auth is not part of the next phase; the app stays LAN/VPN-only.
 
 ### Product Features
 
@@ -163,58 +166,56 @@ Still missing from the math plan:
 
 ## Recommended Next Build Order
 
-1. **Promote tests into the repo** — DONE. See the Test and CI section above.
+The active next phase is documented in
+[`phase-3-chemistry-logbook-core.md`](phase-3-chemistry-logbook-core.md).
+The durable tracker is
+[`project-tracker.md`](project-tracker.md).
 
-2. **Add edit/delete workflows**
+1. **Finish logbook integrity**
    - Edit reading.
    - Delete reading with confirmation.
    - Edit addition.
    - Delete addition with confirmation.
-   - Keep the UI simple; no modal circus.
+   - Add "log this dose" from calculator result to chemical additions.
 
-3. **Add maintenance events**
+2. **Add maintenance events**
    - API endpoints.
    - UI form.
-   - History tab/section.
+   - History tab/section or timeline.
    - CSV export.
 
-4. **Add target profiles and settings history**
-   - Maintenance, SLAM/shock, spa profiles.
-   - Persist settings changes in `pool_settings_history`.
-   - Make dashboard/recommendations use active target profile.
-
-5. **Add calcium and TA chemistry**
+3. **Add calcium and TA chemistry**
    - Calcium chloride dose.
    - Calcium chloride dihydrate dose.
    - Baking soda / TA raise.
    - Formula docs and tests first.
 
-6. **Add CSI**
+4. **Add CSI**
    - Implement only after TA/CH inputs and corrections are stable.
    - Include warnings and confidence language.
    - Show CSI on dashboard with clear “approximate” behavior.
 
-7. **Add trends**
-   - Chart latest history for FC, pH, TA, CH, CYA, salt, CSI, water temp.
-   - Add table fallback for accessibility.
-   - Add chemical addition markers.
+5. **Add acid/base, side effects, and operational helpers**
+   - Muriatic acid / pH lowering guidance.
+   - pH raising guidance.
+   - Side effects for trichlor, dichlor, cal-hypo, and acid.
+   - SLAM helper.
+   - Dilution/refill model.
+   - SWG runtime estimate.
 
-8. **Add authentication**
-   - Optional single-user password.
-   - Session/cookie handling.
-   - Reverse-proxy guidance.
-   - Only then consider any broader exposure than trusted LAN/VPN.
+6. **Pilot polish**
+   - Tighten dashboard wording around target vs typical range.
+   - Make history/export useful with the new record types.
+   - Document pilot verification.
 
-9. **Add metric support**
-   - Decide canonical DB units.
-   - Convert inputs, results, exports, and charts at the edges.
-   - Add tests for conversion and display behavior.
+Later:
 
-10. **Add import/restore**
-    - Readings CSV import.
-    - Additions CSV import.
-    - JSON backup restore.
-    - Dry-run validation before writing.
+- Authentication before any public exposure.
+- Target profiles/settings history after the core chemistry is usable, unless
+  SLAM helper work needs a minimal profile model sooner.
+- Trends/charts after enough history exists.
+- Metric support after formula behavior is stable.
+- Import/restore after exports settle.
 
 ## Useful Verification Commands
 
@@ -252,4 +253,3 @@ curl http://127.0.0.1:5280/api/version
 - Keep GHCR as the primary image registry unless Docker Hub has a concrete
   reason.
 - Preserve the local-first SQLite design.
-

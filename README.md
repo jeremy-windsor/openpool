@@ -77,6 +77,8 @@ See:
 - [`plans/openpool-plan.md`](plans/openpool-plan.md)
 - [`plans/math-plan.md`](plans/math-plan.md)
 - [`plans/ui-design-plan.md`](plans/ui-design-plan.md)
+- [`plans/phase-3-chemistry-logbook-core.md`](plans/phase-3-chemistry-logbook-core.md)
+- [`plans/project-tracker.md`](plans/project-tracker.md)
 
 Implementation docs:
 
