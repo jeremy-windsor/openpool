@@ -140,6 +140,100 @@ add/test, history/chart, calculator, settings, chemical drop, warning triangle,
 check, clock (last-test age), share, export. Icons always pair with a text
 label in navigation.
 
+### 3.6 Concrete tokens — "Calm Aquatic" (confirmed direction)
+
+The chosen vibe is **Calm Aquatic**: soft water-blues, rounded cards, airy
+spacing, gentle. Below are the actual values. Contrast pairings are tuned toward
+**WCAG AA** — verify exact ratios in implementation, especially the amber.
+
+**Brand scale (water blues)**
+
+| Token | Hex | Use |
+|-------|-----|-----|
+| `--brand-50`  | `#ECF8FC` | selected/active row wash |
+| `--brand-100` | `#D2EFF8` | pale fill, chips |
+| `--brand-300` | `#6FC8E6` | accents, dark-mode links |
+| `--brand-500` | `#1690BE` | pool blue, icons |
+| `--brand-600` | `#0E7CA6` | **primary button bg** (white text, bold) |
+| `--brand-700` | `#0B6385` | links/button text on white, hover |
+| `--brand-900` | `#073A4F` | deep pool, headers |
+
+**Status (each as text-shade + tint-bg; never color-only — pair with icon+label)**
+
+| Status | Text/icon | Tile tint | Notes |
+|--------|-----------|-----------|-------|
+| Good    | `--good-700 #1E7A50` | `--good-bg #E4F6EC` | green check |
+| Caution | `--caution-800 #9A5A00` | `--caution-bg #FBF0DA` | amber triangle — darkened text for AA |
+| Danger  | `--danger-700 #B5302A` | `--danger-bg #FBE7E5` | red octagon |
+| Info    | `--brand-700 #0B6385` | `--brand-50 #ECF8FC` | approximate/neutral |
+
+**Surfaces — Light (default)**
+
+```text
+--bg        #F6FAFC   page (water-tinted near-white)
+--surface   #FFFFFF   cards
+--surface-2 #F0F6F9   subtle alt/elevated
+--border    #DCE7EC   cool gray hairline
+--text      #0F2935   ink (blue-black)
+--text-dim  #5B7682   captions, units, hints
+```
+
+**Shape / depth / motion**
+
+```text
+--radius-card  12px      --radius-input 10px
+--radius-pill  999px     --radius-sm    8px
+--space        4 / 8 / 12 / 16 / 24 / 32 / 48   (8px grid)
+--touch-min    48px
+--shadow-card  0 1px 3px rgba(7,58,79,.08), 0 1px 2px rgba(7,58,79,.06)
+--shadow-sheet 0 8px 30px rgba(7,58,79,.18)
+--ease         cubic-bezier(.2,.7,.3,1)   (gentle; disabled under reduced-motion)
+```
+
+**Starter `tokens.css` (the single source of truth; themes swap variables)**
+
+```css
+:root {                      /* Light */
+  --brand-600:#0E7CA6; --brand-700:#0B6385; --brand-900:#073A4F;
+  --brand-50:#ECF8FC; --brand-100:#D2EFF8; --brand-300:#6FC8E6; --brand-500:#1690BE;
+  --good-700:#1E7A50; --good-bg:#E4F6EC;
+  --caution-800:#9A5A00; --caution-bg:#FBF0DA;
+  --danger-700:#B5302A; --danger-bg:#FBE7E5;
+  --bg:#F6FAFC; --surface:#FFFFFF; --surface-2:#F0F6F9;
+  --border:#DCE7EC; --text:#0F2935; --text-dim:#5B7682;
+  --radius-card:12px; --radius-pill:999px;
+}
+[data-theme="dark"] {
+  --bg:#0A1620; --surface:#0F2230; --surface-2:#16303F;
+  --border:#24414F; --text:#E8F1F5; --text-dim:#9DB4BF;
+  --brand-600:#1690BE; --brand-700:#38ABD4;          /* lift accents for dark */
+  --good-700:#5FD39B; --caution-800:#F0B25A; --danger-700:#F0817A;
+  --good-bg:#10322A; --caution-bg:#3A2D12; --danger-bg:#3A1E1C;
+}
+[data-theme="outdoor"] {     /* high-contrast, sun-readable */
+  --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#FFFFFF;
+  --border:#6B8593; --text:#00131C; --text-dim:#234653;
+  --brand-600:#073A4F; --brand-700:#062E3E;          /* darkest for max contrast */
+  --good-700:#0F5E3A; --caution-800:#7A4600; --danger-700:#8E211C;
+}
+@media (prefers-reduced-motion: reduce){ *{ animation:none!important; transition:none!important; } }
+```
+
+**Aquatic component styling notes**
+
+- **Cards**: `--surface` on `--bg`, `--radius-card`, `--shadow-card`, 16px
+  padding. Float gently on the tinted background — that contrast *is* the look.
+- **Primary button**: `--brand-600` fill, white bold text, `--radius-pill`,
+  min-height 48px. The "Add reading" FAB is this, raised.
+- **StatusBanner**: status tint-bg + status text-shade + leading icon. Calm,
+  not a screaming full-saturation bar.
+- **ReadingTile**: white card, dim label on top, big tabular value, unit caption,
+  RangeBar below colored by *that value's* status.
+- **RangeBar**: rounded track in `--surface-2`, a soft target-band segment, and a
+  marker dot in the value's status color.
+- Keep saturation **soft** in Light/Dark; let **Outdoor** mode carry the
+  high-contrast burden so the default stays gentle.
+
 ---
 
 ## 4. Information architecture & navigation
