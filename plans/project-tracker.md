@@ -94,6 +94,47 @@ history in this file.
 - Added dashboard/share reading status tiles.
 - Updated README and review notes.
 
+## UI Build Status
+
+The design spec is `plans/ui-design-plan.md` (Calm Aquatic). This section tracks
+how much of that spec is actually implemented in `templates/` and `static/`, so
+future chats do not rediscover the gap. Frontend-only work is owned by the UI
+chats; backend/logic stays with the main build.
+
+Legend: [x] built · [~] partial/placeholder · [ ] not built.
+
+### Slice 1 - Global shell + dashboard (done)
+
+- [x] Design tokens completed in `tokens.css` (shadows, input/sm radii, easing).
+- [x] Top bar: brand mark, theme toggle, settings icon (dev "Health" link removed
+  from primary nav).
+- [x] Bottom tab nav with inline SVG icons + raised center "Add" FAB.
+- [x] Theme toggle: Light -> Dark -> Outdoor, persisted in localStorage, no-flash
+  head script, `?theme=` URL override for share/iframe/testing.
+- [x] StatusBanner with status icon + plain-language verdict.
+- [x] RecommendationCard with icon + "Log this dose" action.
+- [x] ReadingTile + RangeBar (marker position by status: low/in/high band).
+- [x] Pool-local timestamps humanized client-side ("Today, 5:02 PM").
+- [x] Chemical/unit names prettified in display.
+- [x] "Log this dose" prefills the addition form client-side from query params
+  (no backend round-trip).
+- Verified by headless screenshots: mobile + desktop (light), dark, outdoor,
+  prefilled addition form. 32/32 tests pass.
+
+### Pending UI slices
+
+- [ ] Add-reading form: StepperInputs, "from last test" seeding, non-blocking
+  inline validation, "More tests" disclosure, results screen after save.
+- [ ] Calculator: goal chips, DoseResultCard, ConfidenceBadge, side-effects panel.
+- [ ] History: segmented Readings/Additions/Maintenance, date-range filters,
+  mobile StackedRow vs desktop table.
+- [ ] Settings: grouped sections, theme picker in-page, volume helper, units.
+- [ ] Share page: chrome-free, iframe-safe styling pass.
+- [ ] Trends/charts (after history is complete).
+- [ ] EmptyState/Loading/Error states across all data views.
+- [ ] Exact RangeBar marker positioning would benefit from numeric low/high on
+  tiles (small `services.reading_tiles` change) - deferred, coordinate first.
+
 ## Tested
 
 - Local route/form tests passed in the committed test suite.

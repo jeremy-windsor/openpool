@@ -1,13 +1,22 @@
 <div class="reading-grid">
   {% for tile in tiles %}
   <article class="reading-tile tile-{{ tile.state }}">
-    <span class="tile-label">{{ tile.label }}</span>
-    <strong>{{ tile.value if tile.value is not none else "-" }}</strong>
-    <small>
-      {{ tile.unit }}{% if tile.range %} <span class="tile-range">target {{ tile.range }}</span>{% endif %}
+    <div class="tile-top">
+      <span class="tile-label">{{ tile.label }}</span>
+      {% if tile.state in ["low", "high"] %}
+      <span class="tile-flag tile-flag-{{ tile.state }}">{{ tile.state | upper }}</span>
+      {% endif %}
+    </div>
+    <strong class="tile-value">{{ tile.value if tile.value is not none else "–" }}</strong>
+    <small class="tile-meta">
+      {% if tile.unit %}<span class="tile-unit">{{ tile.unit }}</span>{% endif %}
+      {% if tile.range %}<span class="tile-range">target {{ tile.range }}</span>{% endif %}
     </small>
-    {% if tile.state in ["low", "high"] %}
-    <span class="tile-flag tile-flag-{{ tile.state }}">{{ tile.state | upper }}</span>
+    {% if tile.range and tile.value is not none %}
+    <span class="rangebar rangebar-{{ tile.state }}" aria-hidden="true">
+      <span class="rangebar-band"></span>
+      <span class="rangebar-dot"></span>
+    </span>
     {% endif %}
   </article>
   {% endfor %}

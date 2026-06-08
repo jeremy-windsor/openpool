@@ -2,26 +2,47 @@
 
 {% block content %}
 <section class="hero-status status-{{ snapshot.status.level }}">
-  <h1>{{ snapshot.pool.name }}</h1>
-  <p class="status-label">{{ snapshot.status.text }}</p>
-  {% if snapshot.overview %}
-    <p class="muted">Tested {{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}</p>
-  {% else %}
-    <p class="muted">Start by adding the first manual reading.</p>
-  {% endif %}
+  <span class="status-icon" aria-hidden="true">
+    {% if snapshot.status.level == "good" %}
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>
+    {% elif snapshot.status.level == "danger" %}
+      <svg viewBox="0 0 24 24"><path d="M7.9 3h8.2L21 7.9v8.2L16.1 21H7.9L3 16.1V7.9Z"/><path d="M12 8v5M12 16.5v.5"/></svg>
+    {% elif snapshot.status.level == "caution" %}
+      <svg viewBox="0 0 24 24"><path d="M12 3 22 20H2Z"/><path d="M12 10v4M12 17.5v.5"/></svg>
+    {% else %}
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v.5M12 11v5"/></svg>
+    {% endif %}
+  </span>
+  <div class="hero-body">
+    <h1>{{ snapshot.pool.name }}</h1>
+    <p class="status-label">{{ snapshot.status.text }}</p>
+    {% if snapshot.overview %}
+      <p class="muted">Tested <span data-localtime="{{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}">{{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}</span></p>
+    {% else %}
+      <p class="muted">Start by adding the first manual reading.</p>
+    {% endif %}
+  </div>
 </section>
 
 {% if snapshot.recommendations %}
 <section>
-  <h2>Recommended</h2>
+  <h2 class="section-title">Recommended</h2>
   {% for action in snapshot.recommendations %}
-  <article class="card status-{{ action.severity }}">
-    <h2>{{ action.title }}</h2>
-    <p>{{ action.summary }}</p>
-    <details>
-      <summary>Show math</summary>
-      <p>{{ action.why }}</p>
-    </details>
+  <article class="card rec-card status-{{ action.severity }}">
+    <span class="rec-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M12 3c3 3.5 5 6 5 8.5a5 5 0 0 1-10 0C7 9 9 6.5 12 3Z"/></svg>
+    </span>
+    <div class="rec-body">
+      <h3>{{ action.title }}</h3>
+      <p>{{ action.summary }}</p>
+      <div class="rec-actions">
+        <a class="button primary" href="/additions/new?chemical={{ action.dose.chemical }}&amount={{ action.dose.amount }}&unit={{ action.dose.unit }}&reason=dashboard+recommendation">Log this dose</a>
+      </div>
+      <details>
+        <summary>Show math</summary>
+        <p class="muted">{{ action.why }}</p>
+      </details>
+    </div>
   </article>
   {% endfor %}
 </section>
@@ -29,29 +50,35 @@
 
 <section>
   <div class="section-head">
-    <h2>Readings</h2>
+    <h2 class="section-title">Readings</h2>
     <a class="button" href="/readings/new">Add reading</a>
   </div>
   {% if snapshot.overview %}
   {% with tiles = snapshot.tiles %}{% include "_reading_tiles.html" %}{% endwith %}
   {% else %}
   <article class="empty">
+    <span class="empty-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M12 3c3 3.5 5 6 5 8.5a5 5 0 0 1-10 0C7 9 9 6.5 12 3Z"/></svg>
+    </span>
     <h2>No readings yet</h2>
-    <p>Log the first test and the dashboard will start doing useful work.</p>
-    <a class="button" href="/readings/new">Add first reading</a>
+    <p class="muted">Log the first test and the dashboard will start doing useful work.</p>
+    <a class="button primary" href="/readings/new">Add first reading</a>
   </article>
   {% endif %}
 </section>
 
 <section>
   <div class="section-head">
-    <h2>Recent Additions</h2>
+    <h2 class="section-title">Recent additions</h2>
     <a class="button" href="/additions/new">Log dose</a>
   </div>
   {% if snapshot.recentAdditions %}
   <ul class="ledger">
     {% for addition in snapshot.recentAdditions %}
-    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.addedAtLocal or addition.addedAt }}</span></li>
+    <li>
+      <span class="ledger-main">{{ addition.amount }} {{ addition.unit | replace("_", " ") }} {{ addition.chemical | replace("_", " ") }}</span>
+      <span class="muted" data-localtime="{{ addition.addedAtLocal or addition.addedAt }}">{{ addition.addedAtLocal or addition.addedAt }}</span>
+    </li>
     {% endfor %}
   </ul>
   {% else %}
