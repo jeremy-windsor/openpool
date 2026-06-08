@@ -74,6 +74,30 @@ a {
   gap: 4px;
 }
 
+/* Desktop-only horizontal nav in the header; the bottom tab bar serves mobile. */
+.topnav-links {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.topnav-links a {
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.topnav-links a:hover {
+  background: var(--surface-2);
+  color: var(--brand-700);
+}
+
 .icon-button {
   width: 44px;
   height: 44px;
@@ -610,17 +634,18 @@ th {
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  /* On wide screens, lift the bottom bar into a centered floating pill so it
-     reads as a deliberate element instead of a stretched-out phone tab bar. */
+  /* Desktop: navigate from the header and drop the mobile bottom tab bar. */
+  .topnav-links {
+    display: flex;
+  }
   .bottomnav {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: min(540px, calc(100% - 32px));
-    bottom: 16px;
-    padding: 6px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-pill);
-    box-shadow: var(--shadow-raised);
+    display: none;
+  }
+  .page {
+    width: min(100%, 1024px);
+    padding: 28px 24px 48px;
+  }
+  .topbar {
+    padding: 12px 24px;
   }
 }

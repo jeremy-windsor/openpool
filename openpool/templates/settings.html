@@ -8,7 +8,7 @@
       <input name="name" value="{{ pool.name }}">
     </label>
     <label>Volume
-      <input name="volume_gallons" inputmode="decimal" value="{{ pool.volume_gallons }}">
+      <input name="volume_gallons" inputmode="decimal" value="{{ pool.volume_gallons | num(false) }}">
       <small>gallons</small>
     </label>
     <label>Surface
@@ -24,15 +24,15 @@
       <input name="timezone" value="{{ pool.timezone }}">
     </label>
     <label>Default chlorine strength
-      <input name="default_chlorine_percent" inputmode="decimal" value="{{ pool.default_chlorine_percent }}">
+      <input name="default_chlorine_percent" inputmode="decimal" value="{{ pool.default_chlorine_percent | num(false) }}">
       <small>percent</small>
     </label>
     <label>Jug size
-      <input name="jug_size_fl_oz" inputmode="decimal" value="{{ pool.jug_size_fl_oz }}">
+      <input name="jug_size_fl_oz" inputmode="decimal" value="{{ pool.jug_size_fl_oz | num(false) }}">
       <small>fl oz</small>
     </label>
     <label>Salt bag size
-      <input name="bag_size_lbs" inputmode="decimal" value="{{ pool.bag_size_lbs }}">
+      <input name="bag_size_lbs" inputmode="decimal" value="{{ pool.bag_size_lbs | num(false) }}">
       <small>lb</small>
     </label>
     <input name="share_enabled" type="hidden" value="0">

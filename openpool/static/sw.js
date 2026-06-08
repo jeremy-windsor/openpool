@@ -1,7 +1,10 @@
-const CACHE_NAME = "openpool-shell-v3";
+const CACHE_NAME = "openpool-shell-v4";
 const SHELL = ["/static/tokens.css", "/static/app.css", "/static/app.js"];
 
 self.addEventListener("install", (event) => {
+  // Activate the new worker immediately instead of waiting for every tab to
+  // close, so shell/CSS fixes reach the user on the next load.
+  self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)));
 });
 
@@ -11,7 +14,8 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
-      ),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 

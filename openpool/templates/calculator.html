@@ -12,17 +12,17 @@
       </select>
     </label>
     <label>Current
-      <input name="current" inputmode="decimal" value="{{ current or '' }}">
+      <input name="current" inputmode="decimal" value="{{ current | num(false) }}">
     </label>
     <label>Target
-      <input name="target" inputmode="decimal" value="{{ target or '' }}">
+      <input name="target" inputmode="decimal" value="{{ target | num(false) }}">
     </label>
     <label>Pool volume
-      <input name="pool_gallons" inputmode="decimal" value="{{ pool_gallons or pool.volume_gallons }}">
+      <input name="pool_gallons" inputmode="decimal" value="{{ (pool_gallons or pool.volume_gallons) | num(false) }}">
       <small>gallons</small>
     </label>
     <label>Product strength percent (FC only)
-      <input name="strength" inputmode="decimal" value="{{ strength or pool.default_chlorine_percent }}">
+      <input name="strength" inputmode="decimal" value="{{ (strength or pool.default_chlorine_percent) | num(false) }}">
     </label>
     <button class="button primary" type="submit">Calculate</button>
   </form>
