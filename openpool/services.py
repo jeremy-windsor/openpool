@@ -22,6 +22,23 @@ TYPICAL_RANGES: dict[str, tuple[float | None, float | None]] = {
 }
 
 
+def humanize_number(value: Any, grouping: bool = True) -> str:
+    """Format a numeric value for display: drop a trailing ``.0`` and, by
+    default, add thousands separators. ``None`` becomes an empty string so the
+    same filter is safe for form inputs."""
+    if value is None:
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number == int(number):
+        whole = int(number)
+        return f"{whole:,}" if grouping else str(whole)
+    formatted = f"{number:,.2f}" if grouping else f"{number:.2f}"
+    return formatted.rstrip("0").rstrip(".")
+
+
 def _classify(value: float | None, low: float | None, high: float | None) -> str:
     if value is None or (low is None and high is None):
         return "none"

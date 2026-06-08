@@ -105,6 +105,18 @@ def test_reading_tiles_classify_against_targets(conn):
     assert tiles["csi"]["state"] == "none"
 
 
+def test_humanize_number_formats_for_display():
+    # Whole numbers drop the trailing ".0"; large values group by thousands.
+    assert services.humanize_number(80.0) == "80"
+    assert services.humanize_number(3000) == "3,000"
+    assert services.humanize_number(7.2) == "7.2"
+    assert services.humanize_number(1.50) == "1.5"
+    # None becomes empty so the same filter is safe in form inputs.
+    assert services.humanize_number(None) == ""
+    # Form fields opt out of grouping so the value re-parses as a number.
+    assert services.humanize_number(3000, grouping=False) == "3000"
+
+
 def test_status_summary_levels(conn):
     pool = db.get_pool(conn, "example")
     assert services.status_summary(pool, None)["level"] == "empty"

@@ -1,4 +1,4 @@
-const CACHE_NAME = "openpool-shell-v2";
+const CACHE_NAME = "openpool-shell-v3";
 const SHELL = ["/static/tokens.css", "/static/app.css", "/static/app.js"];
 
 self.addEventListener("install", (event) => {

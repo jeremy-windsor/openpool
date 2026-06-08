@@ -9,42 +9,42 @@
     </label>
     <div class="form-grid">
       <label>FC
-        <input name="fc" inputmode="decimal" value="{{ latest.fc if latest else '' }}">
+        <input name="fc" inputmode="decimal" value="{{ latest.fc | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>CC
-        <input name="cc" inputmode="decimal" value="{{ latest.cc if latest else '' }}">
+        <input name="cc" inputmode="decimal" value="{{ latest.cc | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>pH
-        <input name="ph" inputmode="decimal" value="{{ latest.ph if latest else '' }}">
+        <input name="ph" inputmode="decimal" value="{{ latest.ph | num(false) if latest else '' }}">
       </label>
       <label>TA
-        <input name="ta" inputmode="decimal" value="{{ latest.ta if latest else '' }}">
+        <input name="ta" inputmode="decimal" value="{{ latest.ta | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>CH
-        <input name="ch" inputmode="decimal" value="{{ latest.ch if latest else '' }}">
+        <input name="ch" inputmode="decimal" value="{{ latest.ch | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>CYA
-        <input name="cya" inputmode="decimal" value="{{ latest.cya if latest else '' }}">
+        <input name="cya" inputmode="decimal" value="{{ latest.cya | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>Salt
-        <input name="salt" inputmode="decimal" value="{{ latest.salt if latest else '' }}">
+        <input name="salt" inputmode="decimal" value="{{ latest.salt | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>Borates
-        <input name="borates" inputmode="decimal" value="{{ latest.borates if latest else '' }}">
+        <input name="borates" inputmode="decimal" value="{{ latest.borates | num(false) if latest else '' }}">
         <small>ppm</small>
       </label>
       <label>Water temp
-        <input name="water_temp_f" inputmode="decimal" value="{{ latest.water_temp_f if latest else '' }}">
+        <input name="water_temp_f" inputmode="decimal" value="{{ latest.water_temp_f | num(false) if latest else '' }}">
         <small>deg F</small>
       </label>
       <label>Filter pressure
-        <input name="filter_pressure" inputmode="decimal" value="{{ latest.filter_pressure if latest else '' }}">
+        <input name="filter_pressure" inputmode="decimal" value="{{ latest.filter_pressure | num(false) if latest else '' }}">
         <small>psi</small>
       </label>
     </div>

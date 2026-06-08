@@ -590,19 +590,11 @@ th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  margin-top: -22px;
-  border-radius: var(--radius-pill);
-  background: var(--brand-600);
-  color: #fff;
-  box-shadow: var(--shadow-raised);
 }
 
 .fab .icon {
-  width: 26px;
-  height: 26px;
-  stroke-width: 2.4;
+  width: 22px;
+  height: 22px;
 }
 
 /* ---------- Share page ---------- */
@@ -617,5 +609,18 @@ th {
   }
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* On wide screens, lift the bottom bar into a centered floating pill so it
+     reads as a deliberate element instead of a stretched-out phone tab bar. */
+  .bottomnav {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(540px, calc(100% - 32px));
+    bottom: 16px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-raised);
   }
 }

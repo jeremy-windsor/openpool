@@ -7,7 +7,7 @@
       <span class="tile-flag tile-flag-{{ tile.state }}">{{ tile.state | upper }}</span>
       {% endif %}
     </div>
-    <strong class="tile-value">{{ tile.value if tile.value is not none else "–" }}</strong>
+    <strong class="tile-value">{{ (tile.value | num) if tile.value is not none else "–" }}</strong>
     <small class="tile-meta">
       {% if tile.unit %}<span class="tile-unit">{{ tile.unit }}</span>{% endif %}
       {% if tile.range %}<span class="tile-range">target {{ tile.range }}</span>{% endif %}

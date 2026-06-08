@@ -21,6 +21,7 @@ from openpool.schemas import (
 )
 
 templates = Jinja2Templates(directory=str(Path(__file__).parents[1] / "templates"))
+templates.env.filters["num"] = services.humanize_number
 router = APIRouter()
 
 
