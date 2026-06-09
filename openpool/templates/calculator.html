@@ -9,6 +9,8 @@
         <option value="raise_fc" {% if goal == "raise_fc" %}selected{% endif %}>Raise FC</option>
         <option value="raise_cya" {% if goal == "raise_cya" %}selected{% endif %}>Raise CYA</option>
         <option value="raise_salt" {% if goal == "raise_salt" %}selected{% endif %}>Raise salt</option>
+        <option value="raise_ch" {% if goal == "raise_ch" %}selected{% endif %}>Raise CH</option>
+        <option value="raise_ta" {% if goal == "raise_ta" %}selected{% endif %}>Raise TA</option>
       </select>
     </label>
     <label>Current
@@ -33,7 +35,7 @@
   <article class="dose-card">
     <h1>Add {{ result.dose.amount }} {{ result.dose.unit.replace("_", " ") }}</h1>
     <p class="muted">{{ result.dose.chemical.replace("_", " ") }}</p>
-    <a class="button" href="/additions/new">Log this dose</a>
+    <a class="button" href="/additions/new?chemical={{ result.dose.chemical }}&amp;amount={{ result.dose.amount }}&amp;unit={{ result.dose.unit }}{% if goal == 'raise_fc' %}&amp;strength_percent={{ (strength or pool.default_chlorine_percent) | num(false) }}{% endif %}&amp;reason={{ goal }}">Log this dose</a>
     {% if result.dose.secondary %}
     <ul>
       {% for name, value in result.dose.secondary.items() %}

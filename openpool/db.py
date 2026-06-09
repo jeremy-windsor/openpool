@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from openpool.chemistry.csi import calculate_csi
+
 POOL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MIN_SHARE_TOKEN_LENGTH = 16
 
@@ -94,6 +96,10 @@ SCHEMA = (
     create index if not exists idx_chemical_additions_pool_time
     on chemical_additions(pool_id, added_at desc)
     """,
+    """
+    create index if not exists idx_maintenance_events_pool_time
+    on maintenance_events(pool_id, event_at desc)
+    """,
 )
 
 POOL_FIELDS = {
@@ -142,6 +148,12 @@ ADDITION_FIELDS = {
     "unit",
     "reason",
     "linked_reading_id",
+    "notes",
+}
+
+MAINTENANCE_FIELDS = {
+    "event_at",
+    "event_type",
     "notes",
 }
 
@@ -379,6 +391,19 @@ def get_pool(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any] | None:
     return row_to_dict(row)
 
 
+def _computed_csi(reading: dict[str, Any]) -> float | None:
+    """Compute the approximate CSI for a reading's stored values."""
+    return calculate_csi(
+        ph=reading.get("ph"),
+        ta=reading.get("ta"),
+        ch=reading.get("ch"),
+        cya=reading.get("cya"),
+        water_temp_f=reading.get("water_temp_f"),
+        salt=reading.get("salt"),
+        borates=reading.get("borates"),
+    ).value
+
+
 def create_reading(
     conn: sqlite3.Connection,
     pool_id: str,
@@ -394,6 +419,8 @@ def create_reading(
     cc = data.get("cc")
     if data.get("tc") is None and fc is not None and cc is not None:
         data["tc"] = fc + cc
+    if data.get("csi") is None:
+        data["csi"] = _computed_csi(data)
     row = {
         "id": uuid.uuid4().hex,
         "pool_id": pool_id,
@@ -427,6 +454,52 @@ def create_reading(
 def get_reading(conn: sqlite3.Connection, reading_id: str) -> dict[str, Any] | None:
     row = conn.execute("select * from test_readings where id = ?", (reading_id,)).fetchone()
     return row_to_dict(row)
+
+
+def update_reading(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    reading_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    pool = get_pool(conn, pool_id)
+    if not pool:
+        raise KeyError(pool_id)
+    existing = get_reading(conn, reading_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(reading_id)
+
+    data = _clean_payload(payload, READING_FIELDS)
+    if "tested_at" in data:
+        data["tested_at"] = normalize_timestamp(
+            data.get("tested_at"), pool.get("timezone") or "UTC"
+        )
+    merged = {**existing, **data}
+    if "tc" not in data and ("fc" in data or "cc" in data):
+        fc, cc = merged.get("fc"), merged.get("cc")
+        data["tc"] = fc + cc if fc is not None and cc is not None else None
+        merged["tc"] = data["tc"]
+    if "csi" not in data:
+        # Recompute the stored CSI from the merged reading on every edit.
+        data["csi"] = _computed_csi(merged)
+    if not data:
+        return existing
+
+    assignments = ", ".join(f"{key} = ?" for key in data)
+    conn.execute(
+        f"update test_readings set {assignments} where id = ?",
+        (*data.values(), reading_id),
+    )
+    conn.commit()
+    return get_reading(conn, reading_id) or merged
+
+
+def delete_reading(conn: sqlite3.Connection, pool_id: str, reading_id: str) -> None:
+    existing = get_reading(conn, reading_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(reading_id)
+    conn.execute("delete from test_readings where id = ?", (reading_id,))
+    conn.commit()
 
 
 def list_readings(conn: sqlite3.Connection, pool_id: str, limit: int = 100) -> list[dict[str, Any]]:
@@ -504,6 +577,49 @@ def get_addition(conn: sqlite3.Connection, addition_id: str) -> dict[str, Any] |
     return row_to_dict(row)
 
 
+def update_addition(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    addition_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    pool = get_pool(conn, pool_id)
+    if not pool:
+        raise KeyError(pool_id)
+    existing = get_addition(conn, addition_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(addition_id)
+
+    data = _clean_payload(payload, ADDITION_FIELDS)
+    if "added_at" in data:
+        data["added_at"] = normalize_timestamp(data.get("added_at"), pool.get("timezone") or "UTC")
+    merged = {**existing, **data}
+    if not merged.get("chemical"):
+        raise ValueError("chemical is required")
+    if merged.get("amount") is None:
+        raise ValueError("amount is required")
+    if not merged.get("unit"):
+        raise ValueError("unit is required")
+    if not data:
+        return existing
+
+    assignments = ", ".join(f"{key} = ?" for key in data)
+    conn.execute(
+        f"update chemical_additions set {assignments} where id = ?",
+        (*data.values(), addition_id),
+    )
+    conn.commit()
+    return get_addition(conn, addition_id) or merged
+
+
+def delete_addition(conn: sqlite3.Connection, pool_id: str, addition_id: str) -> None:
+    existing = get_addition(conn, addition_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(addition_id)
+    conn.execute("delete from chemical_additions where id = ?", (addition_id,))
+    conn.commit()
+
+
 def list_additions(
     conn: sqlite3.Connection,
     pool_id: str,
@@ -521,3 +637,97 @@ def list_additions(
             (pool_id, limit),
         ).fetchall()
     )
+
+
+def create_maintenance(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    validate_pool_id(pool_id)
+    pool = get_pool(conn, pool_id)
+    if not pool:
+        raise KeyError(pool_id)
+
+    data = _clean_payload(payload, MAINTENANCE_FIELDS)
+    if not data.get("event_type"):
+        raise ValueError("event_type is required")
+
+    row = {
+        "id": uuid.uuid4().hex,
+        "pool_id": pool_id,
+        "event_at": normalize_timestamp(data.get("event_at"), pool.get("timezone") or "UTC"),
+        "event_type": data["event_type"],
+        "notes": data.get("notes"),
+        "created_at": now_utc(),
+    }
+    columns = ", ".join(row)
+    placeholders = ", ".join("?" for _ in row)
+    conn.execute(
+        f"insert into maintenance_events ({columns}) values ({placeholders})",
+        tuple(row.values()),
+    )
+    conn.commit()
+    return get_maintenance(conn, row["id"]) or row
+
+
+def get_maintenance(conn: sqlite3.Connection, event_id: str) -> dict[str, Any] | None:
+    row = conn.execute("select * from maintenance_events where id = ?", (event_id,)).fetchone()
+    return row_to_dict(row)
+
+
+def list_maintenance(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    validate_pool_id(pool_id)
+    return rows_to_dicts(
+        conn.execute(
+            """
+            select * from maintenance_events
+            where pool_id = ?
+            order by event_at desc, created_at desc
+            limit ?
+            """,
+            (pool_id, limit),
+        ).fetchall()
+    )
+
+
+def update_maintenance(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    event_id: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    pool = get_pool(conn, pool_id)
+    if not pool:
+        raise KeyError(pool_id)
+    existing = get_maintenance(conn, event_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(event_id)
+
+    data = _clean_payload(payload, MAINTENANCE_FIELDS)
+    if "event_at" in data:
+        data["event_at"] = normalize_timestamp(data.get("event_at"), pool.get("timezone") or "UTC")
+    if "event_type" in data and not data.get("event_type"):
+        raise ValueError("event_type is required")
+    if not data:
+        return existing
+
+    assignments = ", ".join(f"{key} = ?" for key in data)
+    conn.execute(
+        f"update maintenance_events set {assignments} where id = ?",
+        (*data.values(), event_id),
+    )
+    conn.commit()
+    return get_maintenance(conn, event_id) or {**existing, **data}
+
+
+def delete_maintenance(conn: sqlite3.Connection, pool_id: str, event_id: str) -> None:
+    existing = get_maintenance(conn, event_id)
+    if not existing or existing["pool_id"] != pool_id:
+        raise KeyError(event_id)
+    conn.execute("delete from maintenance_events where id = ?", (event_id,))
+    conn.commit()

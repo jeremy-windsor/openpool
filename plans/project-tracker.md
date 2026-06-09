@@ -83,6 +83,31 @@ history in this file.
   - CSV formula-injection escaping
   - service worker avoids stale chemistry HTML
 
+### Phase 3A-3C - Logbook Integrity, CH/TA Dosing, CSI
+
+- Edit and delete for readings and additions:
+  - API: `GET/PUT/DELETE /api/pools/{id}/readings/{rid}` and
+    `PUT/DELETE /api/pools/{id}/additions/{aid}` (partial updates).
+  - UI: Edit/Delete actions on every history row with simple confirm dialogs;
+    shared dual-purpose form templates for new/edit.
+- Maintenance events:
+  - API: full CRUD under `/api/pools/{id}/maintenance`.
+  - UI: log/edit/delete from History page, dedicated form with common event
+    types (backwash, clean filter, vacuum, SWG cell, refill, equipment).
+  - Export: `maintenance.csv` plus inclusion in `all.json` backup.
+- New dosing formulas (documented in `docs/formulas.md`, fixture-tested):
+  - Calcium hardness raise: calcium chloride (anhydrous + dihydrate).
+  - Total alkalinity raise: baking soda.
+  - Calculator goals `raise_ch` and `raise_ta` in API and UI.
+- CSI:
+  - Langelier-style index with CYA/borate corrections in `chemistry/csi.py`.
+  - Computed automatically on reading create, recomputed on edit, stored on
+    the reading, shown on dashboard tiles and history.
+  - Missing-input handling returns no value plus warnings instead of fake
+    precision.
+- "Log this dose" now carries chemical/amount/unit/reason from the calculator
+  result into the addition form via query params.
+
 ### Phase 1-2 Finalization
 
 - Committed `tests/` suite for chemistry, SQLite persistence, and FastAPI
@@ -188,22 +213,20 @@ Phase 3 focuses on required pool-care features:
 - Write APIs are open to any trusted-LAN client that can reach the app.
 - Metric support is stored as a preference but not implemented through inputs,
   results, exports, or charts.
-- Maintenance events table exists, but API/UI/export are not built yet.
 
 ## Next Phase
 
 See `plans/phase-3-chemistry-logbook-core.md`.
 
-Start with logbook integrity and dose logging, then add chemistry in tested
-slices:
+Remaining Phase 3 slices (1-4 are done):
 
-1. Edit/delete readings and additions.
-2. Maintenance events API/UI/export.
-3. Calcium and TA dosing.
-4. CSI.
-5. Acid/base and side effects.
-6. SLAM, dilution/refill, and SWG runtime helpers.
-7. Pilot polish and deployment checklist.
+1. ~~Edit/delete readings and additions.~~ Done.
+2. ~~Maintenance events API/UI/export.~~ Done.
+3. ~~Calcium and TA dosing.~~ Done.
+4. ~~CSI.~~ Done.
+5. Acid/base and side effects (3D).
+6. SLAM, dilution/refill, and SWG runtime helpers (3E).
+7. Pilot polish and deployment checklist (3F).
 
 ## How To Update This Tracker
 

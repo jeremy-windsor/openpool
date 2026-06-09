@@ -5,6 +5,8 @@ from hmac import compare_digest
 from typing import Any
 
 from openpool import __version__, db
+from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
+from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
 from openpool.chemistry.chlorine import dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
 from openpool.chemistry.salt import dose_salt_for_ppm
@@ -143,8 +145,22 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             target_salt=float(values["target"]),
             bag_size_lbs=float(pool.get("bag_size_lbs") or 40.0),
         )
+    elif goal == "raise_ch":
+        dose = dose_calcium_chloride_for_ch(
+            pool_gallons=pool_gallons,
+            current_ch=float(values["current"]),
+            target_ch=float(values["target"]),
+        )
+    elif goal == "raise_ta":
+        dose = dose_baking_soda_for_ta(
+            pool_gallons=pool_gallons,
+            current_ta=float(values["current"]),
+            target_ta=float(values["target"]),
+        )
     else:
-        raise ValueError("supported goals are raise_fc, raise_cya, and raise_salt")
+        raise ValueError(
+            "supported goals are raise_fc, raise_cya, raise_salt, raise_ch, and raise_ta"
+        )
 
     return {"goal": goal, "poolGallons": pool_gallons, "dose": dose.to_dict()}
 

@@ -81,10 +81,39 @@ class AdditionIn(BaseModel):
     notes: str | None = None
 
 
+class AdditionUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    added_at: str | None = None
+    chemical: str | None = None
+    strength_percent: float | None = Field(None, gt=0)
+    amount: float | None = Field(None, gt=0)
+    unit: str | None = None
+    reason: str | None = None
+    linked_reading_id: str | None = None
+    notes: str | None = None
+
+
+class MaintenanceIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_at: str | None = None
+    event_type: str
+    notes: str | None = None
+
+
+class MaintenanceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_at: str | None = None
+    event_type: str | None = None
+    notes: str | None = None
+
+
 class CalculationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    goal: Literal["raise_fc", "raise_cya", "raise_salt"]
+    goal: Literal["raise_fc", "raise_cya", "raise_salt", "raise_ch", "raise_ta"]
     current: float = Field(..., ge=0)
     target: float = Field(..., ge=0)
     pool_gallons: float | None = Field(None, gt=0)

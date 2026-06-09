@@ -7,6 +7,7 @@
     <div class="button-row">
       <a class="button" href="/api/pools/{{ pool_id }}/export/readings.csv">Readings CSV</a>
       <a class="button" href="/api/pools/{{ pool_id }}/export/additions.csv">Additions CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/maintenance.csv">Maintenance CSV</a>
       <a class="button" href="/api/pools/{{ pool_id }}/export/all.json">Backup JSON</a>
     </div>
   </div>
@@ -15,20 +16,27 @@
     <table>
       <thead>
         <tr>
-          <th>Tested</th><th>FC</th><th>CC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Salt</th>
+          <th>Tested</th><th>FC</th><th>CC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Salt</th><th>CSI</th><th></th>
         </tr>
       </thead>
       <tbody>
       {% for row in readings %}
         <tr>
-          <td>{{ row.tested_at_local or row.tested_at }}</td>
-          <td>{{ row.fc if row.fc is not none else "" }}</td>
-          <td>{{ row.cc if row.cc is not none else "" }}</td>
-          <td>{{ row.ph if row.ph is not none else "" }}</td>
-          <td>{{ row.ta if row.ta is not none else "" }}</td>
-          <td>{{ row.ch if row.ch is not none else "" }}</td>
-          <td>{{ row.cya if row.cya is not none else "" }}</td>
-          <td>{{ row.salt if row.salt is not none else "" }}</td>
+          <td data-localtime="{{ row.tested_at_local or '' }}">{{ row.tested_at_local or row.tested_at }}</td>
+          <td>{{ row.fc | num if row.fc is not none else "" }}</td>
+          <td>{{ row.cc | num if row.cc is not none else "" }}</td>
+          <td>{{ row.ph | num if row.ph is not none else "" }}</td>
+          <td>{{ row.ta | num if row.ta is not none else "" }}</td>
+          <td>{{ row.ch | num if row.ch is not none else "" }}</td>
+          <td>{{ row.cya | num if row.cya is not none else "" }}</td>
+          <td>{{ row.salt | num if row.salt is not none else "" }}</td>
+          <td>{{ row.csi | num if row.csi is not none else "" }}</td>
+          <td class="row-actions">
+            <a href="/readings/{{ row.id }}/edit">Edit</a>
+            <form method="post" action="/readings/{{ row.id }}/delete" onsubmit="return confirm('Delete this reading?')">
+              <button type="submit" class="link-button">Delete</button>
+            </form>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
@@ -50,11 +58,45 @@
   {% if additions %}
   <ul class="ledger">
     {% for addition in additions %}
-    <li>{{ addition.amount }} {{ addition.unit }} {{ addition.chemical }} <span>{{ addition.added_at_local or addition.added_at }}</span></li>
+    <li>
+      {{ addition.amount | num }} {{ addition.unit.replace("_", " ") }} {{ addition.chemical.replace("_", " ") }}
+      <span data-localtime="{{ addition.added_at_local or '' }}">{{ addition.added_at_local or addition.added_at }}</span>
+      <span class="row-actions">
+        <a href="/additions/{{ addition.id }}/edit">Edit</a>
+        <form method="post" action="/additions/{{ addition.id }}/delete" onsubmit="return confirm('Delete this addition?')">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </span>
+    </li>
     {% endfor %}
   </ul>
   {% else %}
   <p class="muted">No additions logged yet.</p>
+  {% endif %}
+</section>
+
+<section>
+  <div class="section-head">
+    <h1>Maintenance</h1>
+    <a class="button" href="/maintenance/new">Log maintenance</a>
+  </div>
+  {% if maintenance %}
+  <ul class="ledger">
+    {% for event in maintenance %}
+    <li>
+      {{ event.event_type.replace("_", " ") }}{% if event.notes %} - {{ event.notes }}{% endif %}
+      <span data-localtime="{{ event.event_at_local or '' }}">{{ event.event_at_local or event.event_at }}</span>
+      <span class="row-actions">
+        <a href="/maintenance/{{ event.id }}/edit">Edit</a>
+        <form method="post" action="/maintenance/{{ event.id }}/delete" onsubmit="return confirm('Delete this maintenance event?')">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No maintenance logged yet.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -96,6 +96,34 @@ def export_additions(pool_id: str, conn: Connection = Depends(get_db)) -> Respon
     )
 
 
+@router.get("/api/pools/{pool_id}/export/maintenance.csv")
+def export_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> Response:
+    try:
+        if not db.get_pool(conn, pool_id):
+            raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
+        rows = db.list_maintenance(conn, pool_id, limit=10_000)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    fieldnames = [
+        "id",
+        "pool_id",
+        "event_at",
+        "event_type",
+        "notes",
+        "created_at",
+    ]
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(_safe_csv_row(row) for row in rows)
+    return Response(
+        buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{pool_id}-maintenance.csv"'},
+    )
+
+
 @router.get("/api/pools/{pool_id}/export/all.json")
 def export_all(pool_id: str, conn: Connection = Depends(get_db)) -> JSONResponse:
     try:
@@ -106,6 +134,7 @@ def export_all(pool_id: str, conn: Connection = Depends(get_db)) -> JSONResponse
             "pool": db.public_pool(pool),
             "readings": db.list_readings(conn, pool_id, limit=10_000),
             "additions": db.list_additions(conn, pool_id, limit=10_000),
+            "maintenance": db.list_maintenance(conn, pool_id, limit=10_000),
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

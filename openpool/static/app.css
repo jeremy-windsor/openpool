@@ -569,6 +569,52 @@ th {
   text-transform: capitalize;
 }
 
+/* Inline edit/delete actions on history rows. */
+.row-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.row-actions a {
+  color: var(--brand-700);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.row-actions a:hover {
+  text-decoration: underline;
+}
+
+.row-actions form {
+  display: inline;
+}
+
+/* button.link-button overrides the button[type="submit"] pill styling
+   (which uses !important for its color, hence the !important here). */
+button.link-button {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--danger-700) !important;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.link-button:hover {
+  background: none;
+  filter: none;
+  text-decoration: underline;
+}
+
 /* ---------- Bottom navigation ---------- */
 .bottomnav {
   position: fixed;

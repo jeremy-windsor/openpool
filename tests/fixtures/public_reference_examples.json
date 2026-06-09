@@ -44,6 +44,80 @@
       "tolerance_pct": 2
     }
   ],
+  "calcium_chloride": [
+    {
+      "name": "10 ppm CH in 10k gal, dihydrate",
+      "pool_gallons": 10000,
+      "current_ch": 240,
+      "target_ch": 250,
+      "product": "calcium_chloride_dihydrate",
+      "expected_oz_weight": 19.6,
+      "expected_pounds": 1.23,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "10 ppm CH in 10k gal, anhydrous",
+      "pool_gallons": 10000,
+      "current_ch": 240,
+      "target_ch": 250,
+      "product": "calcium_chloride",
+      "expected_oz_weight": 14.8,
+      "expected_pounds": 0.93,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "30 ppm CH in 20k gal, dihydrate",
+      "pool_gallons": 20000,
+      "current_ch": 220,
+      "target_ch": 250,
+      "product": "calcium_chloride_dihydrate",
+      "expected_oz_weight": 117.7,
+      "expected_pounds": 7.35,
+      "tolerance_pct": 2
+    }
+  ],
+  "baking_soda": [
+    {
+      "name": "10 ppm TA in 10k gal",
+      "pool_gallons": 10000,
+      "current_ta": 60,
+      "target_ta": 70,
+      "expected_oz_weight": 22.4,
+      "expected_pounds": 1.4,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "30 ppm TA in 15k gal",
+      "pool_gallons": 15000,
+      "current_ta": 50,
+      "target_ta": 80,
+      "expected_oz_weight": 100.9,
+      "expected_pounds": 6.3,
+      "tolerance_pct": 2
+    }
+  ],
+  "csi": [
+    {
+      "name": "balanced pool, slight negative",
+      "ph": 7.5,
+      "ta": 70,
+      "ch": 350,
+      "cya": 40,
+      "water_temp_f": 80,
+      "salt": 3000,
+      "expected_csi": -0.21,
+      "tolerance_abs": 0.02
+    },
+    {
+      "name": "defaults applied when optional inputs missing",
+      "ph": 7.6,
+      "ta": 80,
+      "ch": 400,
+      "expected_csi": 0.15,
+      "tolerance_abs": 0.02,
+      "expected_warning_count": 3
+    }
+  ],
   "fc_cya_targets": [
     {
       "name": "liquid chlorine, CYA 35 rounds up to 40 bucket",

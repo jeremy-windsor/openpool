@@ -119,3 +119,88 @@ def test_ppm_to_pounds_identity():
     # 1 ppm by mass in 1,000,000 lb of water equals 1 lb of solute.
     pounds = ppm_to_pounds(1, 1_000_000 / 8.345404452)
     assert pounds == pytest.approx(1.0, rel=1e-6)
+
+
+def test_calcium_chloride_reference_cases(reference_examples):
+    from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
+
+    for case in reference_examples["calcium_chloride"]:
+        dose = dose_calcium_chloride_for_ch(
+            pool_gallons=case["pool_gallons"],
+            current_ch=case["current_ch"],
+            target_ch=case["target_ch"],
+            product=case["product"],
+        )
+        assert dose.unit == "oz_weight"
+        assert _within(dose.amount, case["expected_oz_weight"], case["tolerance_pct"]), case["name"]
+        assert _within(
+            dose.secondary["pounds"], case["expected_pounds"], case["tolerance_pct"]
+        ), case["name"]
+
+
+def test_calcium_lowering_returns_zero_dose():
+    from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
+
+    dose = dose_calcium_chloride_for_ch(pool_gallons=10_000, current_ch=500, target_ch=300)
+    assert dose.amount == 0
+    assert dose.warnings
+
+
+def test_calcium_rejects_unknown_product():
+    from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
+
+    with pytest.raises(ValueError):
+        dose_calcium_chloride_for_ch(
+            pool_gallons=10_000, current_ch=200, target_ch=250, product="limestone"
+        )
+
+
+def test_baking_soda_reference_cases(reference_examples):
+    from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
+
+    for case in reference_examples["baking_soda"]:
+        dose = dose_baking_soda_for_ta(
+            pool_gallons=case["pool_gallons"],
+            current_ta=case["current_ta"],
+            target_ta=case["target_ta"],
+        )
+        assert dose.unit == "oz_weight"
+        assert _within(dose.amount, case["expected_oz_weight"], case["tolerance_pct"]), case["name"]
+        assert _within(
+            dose.secondary["pounds"], case["expected_pounds"], case["tolerance_pct"]
+        ), case["name"]
+
+
+def test_baking_soda_lowering_returns_zero_dose():
+    from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
+
+    dose = dose_baking_soda_for_ta(pool_gallons=10_000, current_ta=120, target_ta=80)
+    assert dose.amount == 0
+    assert dose.warnings
+
+
+def test_csi_reference_cases(reference_examples):
+    from openpool.chemistry.csi import calculate_csi
+
+    for case in reference_examples["csi"]:
+        result = calculate_csi(
+            ph=case["ph"],
+            ta=case["ta"],
+            ch=case["ch"],
+            cya=case.get("cya"),
+            water_temp_f=case.get("water_temp_f"),
+            salt=case.get("salt"),
+        )
+        assert result.value == pytest.approx(
+            case["expected_csi"], abs=case["tolerance_abs"]
+        ), case["name"]
+        if "expected_warning_count" in case:
+            assert len(result.warnings) == case["expected_warning_count"], case["name"]
+
+
+def test_csi_requires_ph_ta_ch():
+    from openpool.chemistry.csi import calculate_csi
+
+    result = calculate_csi(ph=None, ta=70, ch=350)
+    assert result.value is None
+    assert "missing pH" in result.warnings[0]

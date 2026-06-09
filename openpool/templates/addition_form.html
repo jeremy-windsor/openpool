@@ -1,44 +1,56 @@
 {% extends "base.html" %}
 
+{# Doubles as the "new addition" form and the edit form (set `addition`,
+   `form_title`, and `form_action` in the context). #}
+
 {% block content %}
 <section>
-  <h1>New Addition</h1>
-  <form method="post" action="/additions/new" class="form-card">
+  <h1>{{ form_title or "New Addition" }}</h1>
+  <form method="post" action="{{ form_action or '/additions/new' }}" class="form-card">
     <label>Added at
-      <input name="added_at" type="datetime-local">
+      <input name="added_at" type="datetime-local" value="{{ addition.added_at_local[:16] if addition and addition.added_at_local else '' }}">
     </label>
     <label>Chemical
       <select name="chemical">
-        <option value="liquid_chlorine">Liquid chlorine</option>
-        <option value="dry_stabilizer">Dry stabilizer</option>
-        <option value="salt">Salt</option>
-        <option value="calcium_chloride">Calcium chloride</option>
-        <option value="muriatic_acid">Muriatic acid</option>
-        <option value="baking_soda">Baking soda</option>
+        {% for value, label in [
+          ("liquid_chlorine", "Liquid chlorine"),
+          ("dry_stabilizer", "Dry stabilizer"),
+          ("salt", "Salt"),
+          ("calcium_chloride", "Calcium chloride"),
+          ("calcium_chloride_dihydrate", "Calcium chloride dihydrate"),
+          ("muriatic_acid", "Muriatic acid"),
+          ("baking_soda", "Baking soda"),
+        ] %}
+        <option value="{{ value }}" {% if addition and addition.chemical == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
       </select>
     </label>
     <div class="form-grid">
       <label>Amount
-        <input name="amount" inputmode="decimal">
+        <input name="amount" inputmode="decimal" value="{{ addition.amount | num(false) if addition else '' }}">
       </label>
       <label>Unit
         <select name="unit">
-          <option value="fl_oz">fl oz</option>
-          <option value="gal">gal</option>
-          <option value="oz_weight">oz weight</option>
-          <option value="lb">lb</option>
+          {% for value, label in [
+            ("fl_oz", "fl oz"),
+            ("gal", "gal"),
+            ("oz_weight", "oz weight"),
+            ("lb", "lb"),
+          ] %}
+          <option value="{{ value }}" {% if addition and addition.unit == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
         </select>
       </label>
       <label>Strength
-        <input name="strength_percent" inputmode="decimal">
+        <input name="strength_percent" inputmode="decimal" value="{{ addition.strength_percent | num(false) if addition else '' }}">
         <small>percent, if relevant</small>
       </label>
     </div>
     <label>Reason
-      <input name="reason">
+      <input name="reason" value="{{ addition.reason if addition and addition.reason else '' }}">
     </label>
     <label>Notes
-      <textarea name="notes" rows="3"></textarea>
+      <textarea name="notes" rows="3">{{ addition.notes if addition and addition.notes else '' }}</textarea>
     </label>
     <button class="button primary" type="submit">Save addition</button>
   </form>

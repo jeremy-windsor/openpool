@@ -7,7 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from openpool import __version__, db, services
 from openpool.config import get_settings
 from openpool.deps import get_db
-from openpool.schemas import AdditionIn, CalculationIn, PoolIn, PoolUpdate, ReadingIn, dump_model
+from openpool.schemas import (
+    AdditionIn,
+    AdditionUpdate,
+    CalculationIn,
+    MaintenanceIn,
+    MaintenanceUpdate,
+    PoolIn,
+    PoolUpdate,
+    ReadingIn,
+    dump_model,
+)
 
 router = APIRouter()
 
@@ -118,6 +128,57 @@ def latest_reading(pool_id: str, conn: Connection = Depends(get_db)) -> dict[str
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("/api/pools/{pool_id}/readings/{reading_id}")
+def get_reading(
+    pool_id: str,
+    reading_id: str,
+    conn: Connection = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        if not db.get_pool(conn, pool_id):
+            raise _not_found(pool_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    reading = db.get_reading(conn, reading_id)
+    if not reading or reading["pool_id"] != pool_id:
+        raise HTTPException(status_code=404, detail=f"reading not found: {reading_id}")
+    return reading
+
+
+@router.put("/api/pools/{pool_id}/readings/{reading_id}")
+def update_reading(
+    pool_id: str,
+    reading_id: str,
+    reading: ReadingIn,
+    conn: Connection = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        return db.update_reading(
+            conn,
+            pool_id,
+            reading_id,
+            dump_model(reading, exclude_unset=True),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/api/pools/{pool_id}/readings/{reading_id}", status_code=204)
+def delete_reading(
+    pool_id: str,
+    reading_id: str,
+    conn: Connection = Depends(get_db),
+) -> None:
+    try:
+        db.delete_reading(conn, pool_id, reading_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/api/pools/{pool_id}/additions")
 def list_additions(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
     try:
@@ -138,6 +199,98 @@ def create_addition(
         return db.create_addition(conn, pool_id, dump_model(addition, exclude_none=True))
     except KeyError as exc:
         raise _not_found(pool_id) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put("/api/pools/{pool_id}/additions/{addition_id}")
+def update_addition(
+    pool_id: str,
+    addition_id: str,
+    addition: AdditionUpdate,
+    conn: Connection = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        return db.update_addition(
+            conn,
+            pool_id,
+            addition_id,
+            dump_model(addition, exclude_unset=True),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/api/pools/{pool_id}/additions/{addition_id}", status_code=204)
+def delete_addition(
+    pool_id: str,
+    addition_id: str,
+    conn: Connection = Depends(get_db),
+) -> None:
+    try:
+        db.delete_addition(conn, pool_id, addition_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/pools/{pool_id}/maintenance")
+def list_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
+    try:
+        if not db.get_pool(conn, pool_id):
+            raise _not_found(pool_id)
+        return db.list_maintenance(conn, pool_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/pools/{pool_id}/maintenance", status_code=201)
+def create_maintenance(
+    pool_id: str,
+    event: MaintenanceIn,
+    conn: Connection = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        return db.create_maintenance(conn, pool_id, dump_model(event, exclude_none=True))
+    except KeyError as exc:
+        raise _not_found(pool_id) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.put("/api/pools/{pool_id}/maintenance/{event_id}")
+def update_maintenance(
+    pool_id: str,
+    event_id: str,
+    event: MaintenanceUpdate,
+    conn: Connection = Depends(get_db),
+) -> dict[str, object]:
+    try:
+        return db.update_maintenance(
+            conn,
+            pool_id,
+            event_id,
+            dump_model(event, exclude_unset=True),
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/api/pools/{pool_id}/maintenance/{event_id}", status_code=204)
+def delete_maintenance(
+    pool_id: str,
+    event_id: str,
+    conn: Connection = Depends(get_db),
+) -> None:
+    try:
+        db.delete_maintenance(conn, pool_id, event_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

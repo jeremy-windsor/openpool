@@ -70,7 +70,9 @@
   ["chemical", "amount", "unit", "reason", "strength_percent"].forEach(function (name) {
     if (!params.has(name)) return;
     var field = form.elements[name];
-    if (field && !field.value) field.value = params.get(name);
+    if (!field) return;
+    // Selects always report a value (the first option), so set them directly.
+    if (field.tagName === "SELECT" || !field.value) field.value = params.get(name);
   });
 })();
 
