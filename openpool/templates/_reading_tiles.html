@@ -10,7 +10,7 @@
     <strong class="tile-value">{{ (tile.value | num) if tile.value is not none else "–" }}</strong>
     <small class="tile-meta">
       {% if tile.unit %}<span class="tile-unit">{{ tile.unit }}</span>{% endif %}
-      {% if tile.range %}<span class="tile-range">target {{ tile.range }}</span>{% endif %}
+      {% if tile.range %}<span class="tile-range">{{ tile.range_kind or "typical" }} {{ tile.range }}</span>{% endif %}
     </small>
     {% if tile.range and tile.value is not none %}
     <span class="rangebar rangebar-{{ tile.state }}" aria-hidden="true">

@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from openpool.chemistry.chlorine import dose_liquid_chlorine_for_fc
+from openpool.chemistry.acid_base import (
+    _acid_fl_oz_per_ppm,
+    dose_muriatic_acid_for_ph,
+    dose_soda_ash_for_ph,
+)
+from openpool.chemistry.chlorine import dose_dry_chlorine_for_fc, dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
+from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
 from openpool.chemistry.salt import dose_salt_for_ppm
 from openpool.chemistry.targets import fc_cya_targets
 from openpool.chemistry.units import normalize_percent, ppm_to_pounds
@@ -204,3 +210,127 @@ def test_csi_requires_ph_ta_ch():
     result = calculate_csi(ph=None, ta=70, ch=350)
     assert result.value is None
     assert "missing pH" in result.warnings[0]
+
+
+def test_dry_chlorine_reference_cases(reference_examples):
+    for case in reference_examples["dry_chlorine"]:
+        dose = dose_dry_chlorine_for_fc(
+            pool_gallons=case["pool_gallons"],
+            current_fc=case["current_fc"],
+            target_fc=case["target_fc"],
+            product=case["product"],
+        )
+        assert dose.unit == "oz_weight"
+        assert _within(dose.amount, case["expected_oz_weight"], case["tolerance_pct"]), case["name"]
+        if "expected_cya_effect" in case:
+            assert _within(
+                dose.effects["cya"], case["expected_cya_effect"], case["tolerance_pct"]
+            ), case["name"]
+        if "expected_ch_effect" in case:
+            assert _within(
+                dose.effects["ch"], case["expected_ch_effect"], case["tolerance_pct"]
+            ), case["name"]
+
+
+def test_dry_chlorine_rejects_unknown_product():
+    with pytest.raises(ValueError):
+        dose_dry_chlorine_for_fc(10000, 0, 10, product="mystery_shock")
+
+
+def test_liquid_chlorine_reports_salt_effect():
+    dose = dose_liquid_chlorine_for_fc(10000, 0, 10)
+    assert _within(dose.effects["salt"], 16.5, 3)
+
+
+def test_muriatic_acid_reference_cases(reference_examples):
+    anchor, derived = reference_examples["muriatic_acid"]
+    # Public identity: 50 ppm of alkalinity demand is about 1 gallon of
+    # 31.45 percent acid in 10,000 gallons.
+    fl_oz = anchor["demand_ppm"] * _acid_fl_oz_per_ppm(anchor["pool_gallons"], 31.45, 1.16)
+    assert _within(fl_oz, anchor["expected_fl_oz"], anchor["tolerance_pct"]), anchor["name"]
+
+    dose = dose_muriatic_acid_for_ph(
+        pool_gallons=derived["pool_gallons"],
+        current_ph=derived["current_ph"],
+        target_ph=derived["target_ph"],
+        ta=derived["ta"],
+        cya=derived["cya"],
+    )
+    assert dose.unit == "fl_oz"
+    assert dose.confidence == "medium"
+    assert _within(dose.amount, derived["expected_fl_oz"], derived["tolerance_pct"])
+    assert _within(-dose.effects["ta"], derived["expected_ta_drop"], derived["tolerance_pct"])
+
+
+def test_muriatic_acid_zero_dose_when_target_above_current():
+    dose = dose_muriatic_acid_for_ph(10000, 7.4, 7.6, ta=80)
+    assert dose.amount == 0.0
+    assert dose.warnings
+
+
+def test_muriatic_acid_requires_ta():
+    with pytest.raises(ValueError):
+        dose_muriatic_acid_for_ph(10000, 7.8, 7.5, ta=0)
+
+
+def test_soda_ash_reference_case(reference_examples):
+    case = reference_examples["soda_ash"][0]
+    dose = dose_soda_ash_for_ph(
+        pool_gallons=case["pool_gallons"],
+        current_ph=case["current_ph"],
+        target_ph=case["target_ph"],
+        ta=case["ta"],
+        cya=case["cya"],
+    )
+    assert dose.unit == "oz_weight"
+    assert dose.confidence == "low"
+    assert _within(dose.amount, case["expected_oz_weight"], case["tolerance_pct"]), case["name"]
+    assert _within(dose.secondary["pounds"], case["expected_pounds"], case["tolerance_pct"])
+    assert dose.effects["ta"] > 0
+
+
+def test_dilution_reference_case(reference_examples):
+    case = reference_examples["dilution"][0]
+    dose = estimate_drain_for_dilution(
+        pool_gallons=case["pool_gallons"],
+        current_ppm=case["current_ppm"],
+        target_ppm=case["target_ppm"],
+    )
+    assert dose.unit == "gallons"
+    assert _within(dose.amount, case["expected_gallons"], case["tolerance_pct"]), case["name"]
+    assert _within(dose.secondary["percent_of_pool"], case["expected_percent"], 1)
+    assert _within(
+        dose.secondary["gallons_if_draining_while_filling"],
+        case["expected_continuous_gallons"],
+        case["tolerance_pct"],
+    )
+
+
+def test_dilution_zero_when_target_not_below_current():
+    dose = estimate_drain_for_dilution(20000, 50, 60)
+    assert dose.amount == 0.0
+    assert dose.warnings
+
+
+def test_swg_runtime_reference_cases(reference_examples):
+    for case in reference_examples["swg_runtime"]:
+        dose = estimate_swg_runtime(
+            pool_gallons=case["pool_gallons"],
+            cell_lbs_per_day=case["cell_lbs_per_day"],
+            target_fc_per_day=case["target_fc_per_day"],
+            pump_hours_per_day=case["pump_hours_per_day"],
+        )
+        assert dose.unit == "percent"
+        assert _within(dose.amount, case["expected_percent"], case["tolerance_pct"]), case["name"]
+        assert _within(
+            dose.secondary["cell_ppm_per_day_at_100_percent"],
+            case["expected_ppm_per_day_at_100"],
+            case["tolerance_pct"],
+        ), case["name"]
+
+
+def test_swg_runtime_warns_when_cell_cannot_keep_up():
+    dose = estimate_swg_runtime(30000, 0.7, 4, pump_hours_per_day=6)
+    assert dose.amount == 100.0
+    assert dose.secondary["required_percent"] > 100
+    assert any("cannot make this much" in warning for warning in dose.warnings)

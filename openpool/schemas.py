@@ -113,11 +113,28 @@ class MaintenanceUpdate(BaseModel):
 class CalculationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    goal: Literal["raise_fc", "raise_cya", "raise_salt", "raise_ch", "raise_ta"]
-    current: float = Field(..., ge=0)
-    target: float = Field(..., ge=0)
+    goal: Literal[
+        "raise_fc",
+        "slam_fc",
+        "raise_cya",
+        "raise_salt",
+        "raise_ch",
+        "raise_ta",
+        "lower_ph",
+        "raise_ph",
+        "lower_by_dilution",
+        "swg_runtime",
+    ]
+    current: float | None = Field(None, ge=0)
+    target: float | None = Field(None, ge=0)
     pool_gallons: float | None = Field(None, gt=0)
     strength: float | None = Field(None, gt=0)
+    product: str | None = None
+    ta: float | None = Field(None, ge=0)
+    cya: float | None = Field(None, ge=0)
+    borates: float | None = Field(None, ge=0)
+    cell_lbs_per_day: float | None = Field(None, gt=0)
+    pump_hours: float | None = Field(None, gt=0, le=24)
 
 
 def validate_model(model_class, data: dict):

@@ -76,6 +76,37 @@
   });
 })();
 
+// ---------- Prefill the maintenance form event type from query params ----------
+(function () {
+  var form = document.querySelector('form[action="/maintenance/new"]');
+  if (!form) return;
+  var params = new URLSearchParams(location.search);
+  if (params.has("event_type") && form.elements.event_type) {
+    form.elements.event_type.value = params.get("event_type");
+  }
+})();
+
+// ---------- Calculator: show only the fields the chosen goal uses ----------
+// Elements with data-goals="raise_fc slam_fc" are visible only for those
+// goals; everything without data-goals is always visible.
+(function () {
+  var goalSelect = document.getElementById("calc-goal");
+  var form = document.getElementById("calc-form");
+  if (!goalSelect || !form) return;
+
+  function update() {
+    var goal = goalSelect.value;
+    var nodes = form.querySelectorAll("[data-goals]");
+    for (var i = 0; i < nodes.length; i++) {
+      var show = nodes[i].getAttribute("data-goals").split(" ").indexOf(goal) !== -1;
+      nodes[i].style.display = show ? "" : "none";
+    }
+  }
+
+  goalSelect.addEventListener("change", update);
+  update();
+})();
+
 // ---------- Service worker ----------
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {

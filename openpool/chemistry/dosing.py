@@ -9,6 +9,9 @@ class Dose:
     amount: float
     unit: str
     secondary: dict[str, float] = field(default_factory=dict)
+    # Approximate side effects on other readings, keyed by reading name with a
+    # signed ppm delta (for example {"cya": 6.1} or {"ta": -3.9}).
+    effects: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     formula: str | None = None
     source_note: str | None = None
@@ -21,6 +24,7 @@ class Dose:
             "amount": self.amount,
             "unit": self.unit,
             "secondary": self.secondary,
+            "effects": self.effects,
             "warnings": self.warnings,
             "formula": self.formula,
             "sourceNote": self.source_note,

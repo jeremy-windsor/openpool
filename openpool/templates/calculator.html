@@ -3,48 +3,119 @@
 {% block content %}
 <section>
   <h1>Calculator</h1>
-  <form method="get" action="/calculator" class="form-card">
+  <form method="get" action="/calculator" class="form-card" id="calc-form">
     <label>Goal
-      <select name="goal">
-        <option value="raise_fc" {% if goal == "raise_fc" %}selected{% endif %}>Raise FC</option>
-        <option value="raise_cya" {% if goal == "raise_cya" %}selected{% endif %}>Raise CYA</option>
-        <option value="raise_salt" {% if goal == "raise_salt" %}selected{% endif %}>Raise salt</option>
-        <option value="raise_ch" {% if goal == "raise_ch" %}selected{% endif %}>Raise CH</option>
-        <option value="raise_ta" {% if goal == "raise_ta" %}selected{% endif %}>Raise TA</option>
+      <select name="goal" id="calc-goal">
+        {% for value, label in [
+          ("raise_fc", "Raise FC"),
+          ("slam_fc", "SLAM / shock"),
+          ("raise_cya", "Raise CYA"),
+          ("raise_salt", "Raise salt"),
+          ("raise_ch", "Raise CH"),
+          ("raise_ta", "Raise TA"),
+          ("lower_ph", "Lower pH (muriatic acid)"),
+          ("raise_ph", "Raise pH (soda ash)"),
+          ("lower_by_dilution", "Lower by dilution"),
+          ("swg_runtime", "SWG runtime"),
+        ] %}
+        <option value="{{ value }}" {% if goal == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
       </select>
     </label>
-    <label>Current
-      <input name="current" inputmode="decimal" value="{{ current | num(false) }}">
+    <label data-goals="raise_fc">Chlorine product
+      <select name="product">
+        {% for value, label in [
+          ("liquid_chlorine", "Liquid chlorine / bleach"),
+          ("trichlor", "Trichlor"),
+          ("dichlor", "Dichlor"),
+          ("cal_hypo", "Cal-hypo"),
+        ] %}
+        <option value="{{ value }}" {% if product == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     </label>
-    <label>Target
+    <label data-goals="raise_fc slam_fc raise_cya raise_salt raise_ch raise_ta lower_ph raise_ph lower_by_dilution">Current
+      <input name="current" inputmode="decimal" value="{{ current | num(false) }}">
+      <small data-goals="lower_by_dilution">current reading of the value you want to lower (CYA, salt, CH, or borates)</small>
+    </label>
+    <label data-goals="raise_fc raise_cya raise_salt raise_ch raise_ta lower_ph raise_ph lower_by_dilution swg_runtime">Target
       <input name="target" inputmode="decimal" value="{{ target | num(false) }}">
+      <small data-goals="swg_runtime">FC ppm to generate per day (2-4 ppm is typical)</small>
+    </label>
+    <label data-goals="lower_ph raise_ph">TA
+      <input name="ta" inputmode="decimal" value="{{ ta | num(false) }}">
+      <small>ppm; required for pH dosing</small>
+    </label>
+    <label data-goals="slam_fc lower_ph raise_ph">CYA
+      <input name="cya" inputmode="decimal" value="{{ cya | num(false) }}">
+      <small>ppm; improves accuracy{% if goal == "slam_fc" %} and sets the SLAM target{% endif %}</small>
+    </label>
+    <label data-goals="lower_ph raise_ph">Borates
+      <input name="borates" inputmode="decimal" value="{{ borates | num(false) }}">
+      <small>ppm, if you use them</small>
+    </label>
+    <label data-goals="swg_runtime">Cell output rating
+      <input name="cell_lbs_per_day" inputmode="decimal" value="{{ cell_lbs_per_day | num(false) }}">
+      <small>lbs chlorine per day at 100 percent (from the cell spec sheet)</small>
+    </label>
+    <label data-goals="swg_runtime">Pump hours per day
+      <input name="pump_hours" inputmode="decimal" value="{{ pump_hours | num(false) }}">
+      <small>defaults to 24</small>
     </label>
     <label>Pool volume
       <input name="pool_gallons" inputmode="decimal" value="{{ (pool_gallons or pool.volume_gallons) | num(false) }}">
       <small>gallons</small>
     </label>
-    <label>Product strength percent (FC only)
+    <label data-goals="raise_fc slam_fc">Product strength percent
       <input name="strength" inputmode="decimal" value="{{ (strength or pool.default_chlorine_percent) | num(false) }}">
+      <small>liquid chlorine or cal-hypo label strength</small>
     </label>
     <button class="button primary" type="submit">Calculate</button>
   </form>
 </section>
 
+{% if error %}
+<section>
+  <article class="card status-caution">
+    <p>{{ error }}</p>
+  </article>
+</section>
+{% endif %}
+
 {% if result %}
 <section>
   <article class="dose-card">
-    <h1>Add {{ result.dose.amount }} {{ result.dose.unit.replace("_", " ") }}</h1>
-    <p class="muted">{{ result.dose.chemical.replace("_", " ") }}</p>
-    <a class="button" href="/additions/new?chemical={{ result.dose.chemical }}&amp;amount={{ result.dose.amount }}&amp;unit={{ result.dose.unit }}{% if goal == 'raise_fc' %}&amp;strength_percent={{ (strength or pool.default_chlorine_percent) | num(false) }}{% endif %}&amp;reason={{ goal }}">Log this dose</a>
+    {% if goal == "swg_runtime" %}
+    <h1>Set SWG output to {{ result.dose.amount | num }}%</h1>
+    <p class="muted">{{ result.dose.secondary.hours_per_day_at_100_percent }} hours/day at 100 percent would also work</p>
+    {% elif goal == "lower_by_dilution" %}
+    <h1>Replace {{ result.dose.amount | num }} gallons</h1>
+    <p class="muted">{{ result.dose.secondary.percent_of_pool }}% of the pool, drained then refilled</p>
+    {% else %}
+    <h1>Add {{ result.dose.amount | num }} {{ result.dose.unit.replace("_", " ") }}</h1>
+    <p class="muted">{{ result.dose.chemical.replace("_", " ") }}{% if goal == "slam_fc" %} - SLAM target FC {{ result.targetFc | num }} ppm{% endif %}</p>
+    {% endif %}
+    {% if goal == "lower_by_dilution" %}
+    <a class="button" href="/maintenance/new?event_type=water_refill">Log water replacement</a>
+    {% elif goal != "swg_runtime" and result.dose.amount > 0 %}
+    <a class="button" href="/additions/new?chemical={{ result.dose.chemical }}&amp;amount={{ result.dose.amount }}&amp;unit={{ result.dose.unit }}{% if goal in ['raise_fc', 'slam_fc'] %}&amp;strength_percent={{ (strength or pool.default_chlorine_percent) | num(false) }}{% endif %}&amp;reason={{ goal }}">Log this dose</a>
+    {% endif %}
     {% if result.dose.secondary %}
     <ul>
       {% for name, value in result.dose.secondary.items() %}
-      <li>{{ value }} {{ name }}</li>
+      <li>{{ value | num }} {{ name.replace("_", " ") }}</li>
       {% endfor %}
     </ul>
     {% endif %}
+    {% if result.dose.effects %}
+    <p><strong>Also changes (approximate):</strong>
+      {% for name, value in result.dose.effects.items() %}
+      {{ name | upper }} {{ "+" if value > 0 }}{{ value | num }} ppm{{ ", " if not loop.last }}
+      {% endfor %}
+    </p>
+    {% endif %}
     {% if result.dose.warnings %}
-    <details>
+    <details open>
       <summary>Warnings</summary>
       <ul>
       {% for warning in result.dose.warnings %}

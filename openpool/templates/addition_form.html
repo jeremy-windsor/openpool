@@ -14,12 +14,16 @@
       <select name="chemical">
         {% for value, label in [
           ("liquid_chlorine", "Liquid chlorine"),
+          ("trichlor", "Trichlor"),
+          ("dichlor", "Dichlor"),
+          ("cal_hypo", "Cal-hypo"),
           ("dry_stabilizer", "Dry stabilizer"),
           ("salt", "Salt"),
           ("calcium_chloride", "Calcium chloride"),
           ("calcium_chloride_dihydrate", "Calcium chloride dihydrate"),
           ("muriatic_acid", "Muriatic acid"),
           ("baking_soda", "Baking soda"),
+          ("soda_ash", "Soda ash"),
         ] %}
         <option value="{{ value }}" {% if addition and addition.chemical == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}

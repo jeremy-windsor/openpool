@@ -142,6 +142,162 @@ validation:
   - pH 7.5, TA 70, CH 350, CYA 40, 80 F, salt 3000 = about -0.21
 ```
 
+## Dry Chlorine FC Raise (trichlor, dichlor, cal-hypo)
+
+These products change more than FC, so the dose result includes expected side
+effects from the same stoichiometry.
+
+```yaml
+name: dry_chlorine_fc_raise
+category: sanitizer
+source_note: stoichiometric available-chlorine mass conversion
+inputs:
+  pool_gallons: gallons
+  current_fc: ppm as Cl2
+  target_fc: ppm as Cl2
+  product: trichlor | dichlor | cal_hypo
+  available_chlorine_percent: cal-hypo label strength only, default 65
+outputs:
+  dose_oz_weight: ounces by weight
+  dose_lbs: pounds
+  effects: expected ppm side effects
+formula: product_lbs = delta_fc * pool_gallons * 8.345404452 / 1000000 / available_chlorine
+constants:
+  trichlor_available_chlorine: 3 * 70.906 / 232.41 = 0.915
+  dichlor_available_chlorine: 2 * 70.906 / 255.97 = 0.554 (dihydrate)
+  trichlor_cya_per_fc: 129.07 / (3 * 70.906) = 0.607
+  dichlor_cya_per_fc: 129.07 / (2 * 70.906) = 0.910
+  cal_hypo_ch_per_fc: 100.087 / (2 * 70.906) = 0.706
+validation:
+  - 10 ppm FC from trichlor adds about 6 ppm CYA (public TFP fact)
+  - 10 ppm FC from dichlor adds about 9 ppm CYA (public TFP fact)
+  - 10 ppm FC from cal-hypo adds about 7 ppm CH (public TFP fact)
+```
+
+Liquid chlorine also reports a salt side effect: hypochlorite manufacture
+(`Cl2 + 2 NaOH`) yields equimolar NaCl and spent NaOCl ends as NaCl, so each
+ppm of FC adds about `2 * 58.443 / 70.906 = 1.65` ppm salt.
+
+## pH Lowering (muriatic acid) - approximate
+
+pH dosing is buffer math, not ppm mass math, so this result is marked
+approximate (`confidence: medium`).
+
+```yaml
+name: muriatic_acid_ph_lower
+category: acid_base
+source_note: closed-system carbonate buffer model with cyanurate/borate corrections
+inputs:
+  pool_gallons: gallons
+  current_ph: required
+  target_ph: required
+  ta: ppm as CaCO3, required
+  cya: ppm, optional
+  borates: ppm, optional
+  acid_percent: 31.45 (default) or 14.5
+outputs:
+  dose_fl_oz: fluid ounces
+  effects: expected TA drop in ppm
+formula: |
+  carbonate_alk = ta - cyanurate_alk(ph) - borate_alk(ph)
+  acid_ppm = carbonate_alk * (1 - r_t/r_0) / (1 + r_t)      # r = 10^(ph - 6.3)
+           + buffer_alk(ph_now) - buffer_alk(ph_target)      # cyanurate + borate
+  fl_oz = acid_ppm * fl_oz_per_ppm(strength, density)
+constants:
+  carbonic_pk1: 6.3
+  cyanuric_pka: 6.9
+  borate_pka: 9.2
+  hcl_molar_mass: 36.461
+  acid_31.45_density: 1.16 g/mL
+assumptions:
+  - real acid demand varies with aeration and CO2 exchange
+  - TA drops by about the ppm of alkalinity the acid consumes
+validation:
+  - 1 gallon of 31.45 percent muriatic acid lowers TA by about 50 ppm in
+    10,000 gallons (public identity; the model reproduces this exactly)
+  - pH 7.8 -> 7.5 at TA 100, CYA 40, 10k gal = about 10 fl oz
+```
+
+## pH Raising (soda ash) - approximate
+
+Marked `confidence: low`. Aeration raises pH without adding TA and is usually
+the better first step; the dose card says so.
+
+```yaml
+name: soda_ash_ph_raise
+category: acid_base
+source_note: closed-system carbonate buffer model with cyanurate/borate corrections
+inputs:
+  pool_gallons: gallons
+  current_ph: required
+  target_ph: required
+  ta: ppm as CaCO3, required
+  cya: ppm, optional
+  borates: ppm, optional
+outputs:
+  dose_oz_weight: ounces by weight
+  effects: expected TA rise in ppm
+formula: |
+  base_ppm = (r_t * co2_0 - carbonate_alk) / (1 + r_t/2)
+           + buffer_alk(ph_target) - buffer_alk(ph_now)
+  product_lbs = ppm_to_pounds(base_ppm) * (105.988/2) / 50.042
+validation:
+  - pH 7.2 -> 7.5 at TA 70, CYA 40, 10k gal = about 12 oz, matching the
+    common public chart value of about 3/4 lb soda ash
+```
+
+## SLAM Dose
+
+SLAM is the existing liquid chlorine dose pointed at the FC/CYA chart's shock
+level instead of the maintenance target. No new constants. The result warns
+that SLAM is a process (hold FC at shock level, retest often, pass criteria:
+CC under 0.5, overnight FC loss under 1 ppm, clear water).
+
+## Dilution / Water Replacement
+
+```yaml
+name: lower_by_dilution
+category: operations
+source_note: proportional water replacement
+inputs:
+  pool_gallons: gallons
+  current_ppm: reading being lowered (CYA, salt, CH, borates)
+  target_ppm: desired reading
+outputs:
+  gallons_to_replace: drain-then-refill volume
+  percent_of_pool: same as a percent
+  gallons_if_draining_while_filling: exponential-decay volume
+formula: |
+  replace_fraction = 1 - target / current
+  continuous_gallons = pool_gallons * ln(current / target)
+validation:
+  - halving CYA requires replacing half the water (100 -> 50 in 20k gal =
+    10,000 gallons; about 13,860 if draining while filling)
+```
+
+## SWG Runtime Estimate
+
+```yaml
+name: swg_runtime
+category: operations
+source_note: cell rating arithmetic; ratings are lbs Cl2 gas per 24 h at 100 percent
+inputs:
+  pool_gallons: gallons
+  cell_lbs_per_day: rated output at 100 percent
+  target_fc_per_day: ppm FC to generate daily
+  pump_hours_per_day: default 24
+outputs:
+  percent: required output setting (capped at 100 with a warning)
+  hours_per_day_at_100_percent: equivalent runtime
+formula: percent = target_fc_per_day / (cell_ppm_per_day * pump_hours / 24) * 100
+assumptions:
+  - output scales linearly with the percent setting
+  - the cell only generates while the pump runs
+validation:
+  - a 1.4 lb/day cell in 10,000 gallons makes about 16.8 ppm/day at 100
+    percent, so 4 ppm/day needs about 24 percent at 24 h pump runtime
+```
+
 ## FC/CYA Targets
 
 `openpool` encodes public Trouble Free Pool style FC/CYA target rows by hand.

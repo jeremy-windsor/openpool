@@ -74,3 +74,36 @@ Acceptable early exposure is localhost, SSH tunnel, private VPN, or a trusted
 LAN/VLAN where every client is allowed to read and write pool data. Anything
 else needs auth first. No exceptions; future-you is tired of cleaning up
 avoidable nonsense.
+
+## Pilot Checklist
+
+Run this list before and during a few weeks of real-pool use.
+
+Before the pilot:
+
+- [ ] Pull the latest image and confirm `/api/version` matches the expected
+      commit.
+- [ ] Set pool volume, sanitizer type, timezone, and chlorine strength in
+      Settings.
+- [ ] Confirm the `/data` volume is on storage that survives container
+      recreation.
+- [ ] Take a `all.json` backup and confirm it downloads and parses.
+- [ ] Confirm the app is reachable only via localhost, VPN, or trusted LAN.
+
+During the pilot, daily or per-test:
+
+- [ ] Log readings from the test kit; confirm CSI appears when pH/TA/CH are
+      present.
+- [ ] Use the calculator for every dose and log it with "Log this dose".
+- [ ] Log maintenance events (backwash, cleaning, refills) as they happen.
+
+Weekly:
+
+- [ ] Download `all.json` as a backup.
+- [ ] Skim history for entry mistakes; fix them with Edit instead of
+      re-entering.
+- [ ] Note anything annoying or missing in `plans/project-tracker.md` under
+      Active Concerns.
+
+Known not-yet-built (do not rediscover): charts/trends, metric units in the
+UI, import/restore, authentication, multi-user. See the tracker.

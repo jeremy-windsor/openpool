@@ -288,8 +288,31 @@ def delete_maintenance_page(event_id: str, conn: Connection = Depends(get_db)):
     return RedirectResponse("/history", status_code=303)
 
 
+def _filter_by_date(
+    rows: list[dict], local_key: str, start: str | None, end: str | None
+) -> list[dict]:
+    """Keep rows whose pool-local date falls inside the inclusive range."""
+    if not start and not end:
+        return rows
+    kept = []
+    for row in rows:
+        day = (row.get(local_key) or "")[:10]
+        if start and day < start:
+            continue
+        if end and day > end:
+            continue
+        kept.append(row)
+    return kept
+
+
 @router.get("/history")
-def history(request: Request, conn: Connection = Depends(get_db)):
+def history(
+    request: Request,
+    record: str = "all",
+    start: str | None = None,
+    end: str | None = None,
+    conn: Connection = Depends(get_db),
+):
     pool_id = _pool_id()
     pool = db.get_pool(conn, pool_id)
     timezone_name = pool.get("timezone") if pool else "UTC"
@@ -302,15 +325,25 @@ def history(request: Request, conn: Connection = Depends(get_db)):
     maintenance = db.list_maintenance(conn, pool_id)
     for row in maintenance:
         row["event_at_local"] = db.local_timestamp(row.get("event_at"), timezone_name)
+
+    if record not in {"all", "readings", "additions", "maintenance"}:
+        record = "all"
+    readings = _filter_by_date(readings, "tested_at_local", start, end)
+    additions = _filter_by_date(additions, "added_at_local", start, end)
+    maintenance = _filter_by_date(maintenance, "event_at_local", start, end)
+
     return templates.TemplateResponse(
         request=request,
         name="history.html",
         context={
             "title": "History",
             "pool_id": pool_id,
-            "readings": readings,
-            "additions": additions,
-            "maintenance": maintenance,
+            "record": record,
+            "start": start,
+            "end": end,
+            "readings": readings if record in {"all", "readings"} else [],
+            "additions": additions if record in {"all", "additions"} else [],
+            "maintenance": maintenance if record in {"all", "maintenance"} else [],
         },
     )
 
@@ -323,6 +356,12 @@ def calculator(
     target: float | None = None,
     pool_gallons: float | None = None,
     strength: float | None = None,
+    product: str | None = None,
+    ta: float | None = None,
+    cya: float | None = None,
+    borates: float | None = None,
+    cell_lbs_per_day: float | None = None,
+    pump_hours: float | None = None,
     conn: Connection = Depends(get_db),
 ):
     pool_id = _pool_id()
@@ -330,21 +369,32 @@ def calculator(
     if not pool:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
 
+    values = {
+        "current": current,
+        "target": target,
+        "pool_gallons": pool_gallons,
+        "strength": strength,
+        "product": product,
+        "ta": ta,
+        "cya": cya,
+        "borates": borates,
+        "cell_lbs_per_day": cell_lbs_per_day,
+        "pump_hours": pump_hours,
+    }
+    # Only attempt a calculation once the goal's primary inputs are filled in;
+    # anything still missing surfaces as an inline form error, not a 400 page.
+    ready = {
+        "slam_fc": current is not None,
+        "swg_runtime": target is not None or cell_lbs_per_day is not None,
+    }.get(goal, current is not None and target is not None)
+
     result = None
-    if current is not None and target is not None:
+    error = None
+    if ready:
         try:
-            result = services.calculate_goal(
-                pool,
-                goal,
-                {
-                    "current": current,
-                    "target": target,
-                    "pool_gallons": pool_gallons,
-                    "strength": strength,
-                },
-            )
+            result = services.calculate_goal(pool, goal, values)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            error = str(exc)
 
     return templates.TemplateResponse(
         request=request,
@@ -353,11 +403,9 @@ def calculator(
             "title": "Calculator",
             "pool": pool,
             "goal": goal,
-            "current": current,
-            "target": target,
-            "pool_gallons": pool_gallons,
-            "strength": strength,
             "result": result,
+            "error": error,
+            **values,
         },
     )
 

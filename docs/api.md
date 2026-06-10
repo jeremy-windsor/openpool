@@ -71,11 +71,27 @@ POST /api/pools/{pool_id}/calculate
 
 Supported goals:
 
-- `raise_fc`
+- `raise_fc` - optional `product`: `liquid_chlorine` (default), `trichlor`,
+  `dichlor`, or `cal_hypo`. Dry products return expected side effects
+  (`effects`) such as CYA or CH rise.
+- `slam_fc` - needs `current` (FC); optional `cya` sets the shock target from
+  the FC/CYA chart. `target` is ignored.
 - `raise_cya`
 - `raise_salt`
 - `raise_ch`
 - `raise_ta`
+- `lower_ph` - needs `current`/`target` (pH) and `ta`; optional `cya` and
+  `borates`. Returns muriatic acid fl oz plus the expected TA drop. Approximate.
+- `raise_ph` - same inputs as `lower_ph`; returns soda ash oz weight plus the
+  expected TA rise. Approximate; aeration is suggested first.
+- `lower_by_dilution` - `current`/`target` of any dilution-only reading (CYA,
+  salt, CH, borates). Returns gallons of water to replace.
+- `swg_runtime` - needs `target` (FC ppm per day) and `cell_lbs_per_day`;
+  optional `pump_hours` (default 24). Returns the percent output setting.
+
+Request fields: `goal`, `current`, `target`, `pool_gallons`, `strength`,
+`product`, `ta`, `cya`, `borates`, `cell_lbs_per_day`, `pump_hours`. Missing
+required inputs for a goal return `400` with the missing names.
 
 ## Exports and Share
 

@@ -5,10 +5,12 @@ from hmac import compare_digest
 from typing import Any
 
 from openpool import __version__, db
+from openpool.chemistry.acid_base import dose_muriatic_acid_for_ph, dose_soda_ash_for_ph
 from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
 from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
-from openpool.chemistry.chlorine import dose_liquid_chlorine_for_fc
+from openpool.chemistry.chlorine import dose_dry_chlorine_for_fc, dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
+from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
 from openpool.chemistry.salt import dose_salt_for_ppm
 from openpool.chemistry.targets import fc_cya_targets
 
@@ -75,15 +77,18 @@ def reading_tiles(
     cya_low, cya_high = (60, 80) if is_swg else (30, 60)
     salt_low, salt_high = (2700, 3400) if is_swg else (None, None)
 
+    # "target" ranges come from sanitizer-specific recommendations (FC/CYA
+    # chart, SWG salt window); everything else is a generic comfort range and
+    # is labeled "typical" so the dashboard does not overstate precision.
     specs = [
-        ("fc", "FC", "ppm", value("fc"), targets.target_low, targets.target_high),
-        ("cc", "CC", "ppm", value("cc"), *TYPICAL_RANGES["cc"]),
-        ("ph", "pH", "", value("ph"), *TYPICAL_RANGES["ph"]),
-        ("ta", "TA", "ppm", value("ta"), *TYPICAL_RANGES["ta"]),
-        ("ch", "CH", "ppm", value("ch"), *TYPICAL_RANGES["ch"]),
-        ("cya", "CYA", "ppm", value("cya"), cya_low, cya_high),
-        ("salt", "Salt", "ppm", value("salt"), salt_low, salt_high),
-        ("csi", "CSI", "", value("csi"), *TYPICAL_RANGES["csi"]),
+        ("fc", "FC", "ppm", value("fc"), targets.target_low, targets.target_high, "target"),
+        ("cc", "CC", "ppm", value("cc"), *TYPICAL_RANGES["cc"], "typical"),
+        ("ph", "pH", "", value("ph"), *TYPICAL_RANGES["ph"], "typical"),
+        ("ta", "TA", "ppm", value("ta"), *TYPICAL_RANGES["ta"], "typical"),
+        ("ch", "CH", "ppm", value("ch"), *TYPICAL_RANGES["ch"], "typical"),
+        ("cya", "CYA", "ppm", value("cya"), cya_low, cya_high, "target"),
+        ("salt", "Salt", "ppm", value("salt"), salt_low, salt_high, "target"),
+        ("csi", "CSI", "", value("csi"), *TYPICAL_RANGES["csi"], "typical"),
     ]
     return [
         {
@@ -93,8 +98,9 @@ def reading_tiles(
             "value": val,
             "state": _classify(val, low, high),
             "range": _range_text(low, high),
+            "range_kind": kind,
         }
-        for key, label, unit, val, low, high in specs
+        for key, label, unit, val, low, high, kind in specs
     ]
 
 
@@ -121,24 +127,85 @@ def _overview(reading: dict[str, Any] | None, include_notes: bool = False) -> di
     return overview
 
 
+SUPPORTED_GOALS = (
+    "raise_fc",
+    "slam_fc",
+    "raise_cya",
+    "raise_salt",
+    "raise_ch",
+    "raise_ta",
+    "lower_ph",
+    "raise_ph",
+    "lower_by_dilution",
+    "swg_runtime",
+)
+
+
+def _require(values: dict[str, Any], goal: str, *names: str) -> None:
+    missing = [name for name in names if values.get(name) is None]
+    if missing:
+        raise ValueError(f"{goal} needs: {', '.join(missing)}")
+
+
 def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> dict[str, Any]:
     pool_gallons = float(values.get("pool_gallons") or pool["volume_gallons"])
+    extra: dict[str, Any] = {}
 
     if goal == "raise_fc":
+        _require(values, goal, "current", "target")
+        product = values.get("product") or "liquid_chlorine"
+        if product == "liquid_chlorine":
+            dose = dose_liquid_chlorine_for_fc(
+                pool_gallons=pool_gallons,
+                current_fc=float(values["current"]),
+                target_fc=float(values["target"]),
+                chlorine_percent=float(
+                    values.get("strength") or pool["default_chlorine_percent"]
+                ),
+                jug_size_fl_oz=float(pool.get("jug_size_fl_oz") or 128.0),
+            )
+        else:
+            dose = dose_dry_chlorine_for_fc(
+                pool_gallons=pool_gallons,
+                current_fc=float(values["current"]),
+                target_fc=float(values["target"]),
+                product=product,
+                available_chlorine_percent=(
+                    float(values["strength"])
+                    if product == "cal_hypo" and values.get("strength")
+                    else None
+                ),
+            )
+    elif goal == "slam_fc":
+        _require(values, goal, "current")
+        targets = fc_cya_targets(values.get("cya"), pool.get("sanitizer") or "liquid_chlorine")
         dose = dose_liquid_chlorine_for_fc(
             pool_gallons=pool_gallons,
             current_fc=float(values["current"]),
-            target_fc=float(values["target"]),
+            target_fc=targets.slam,
             chlorine_percent=float(values.get("strength") or pool["default_chlorine_percent"]),
             jug_size_fl_oz=float(pool.get("jug_size_fl_oz") or 128.0),
         )
+        dose.warnings.extend(targets.warnings)
+        dose.warnings.extend(
+            [
+                "SLAM is a process: hold FC at the shock level, test and re-dose "
+                "every few hours until the water passes.",
+                "Done when CC is under 0.5, overnight FC loss is under 1 ppm, "
+                "and the water is clear.",
+            ]
+        )
+        extra["targets"] = targets.to_dict()
+        extra["targetFc"] = targets.slam
     elif goal == "raise_cya":
+        _require(values, goal, "current", "target")
         dose = dose_dry_stabilizer_for_cya(
             pool_gallons=pool_gallons,
             current_cya=float(values["current"]),
             target_cya=float(values["target"]),
         )
     elif goal == "raise_salt":
+        _require(values, goal, "current", "target")
         dose = dose_salt_for_ppm(
             pool_gallons=pool_gallons,
             current_salt=float(values["current"]),
@@ -146,23 +213,58 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             bag_size_lbs=float(pool.get("bag_size_lbs") or 40.0),
         )
     elif goal == "raise_ch":
+        _require(values, goal, "current", "target")
         dose = dose_calcium_chloride_for_ch(
             pool_gallons=pool_gallons,
             current_ch=float(values["current"]),
             target_ch=float(values["target"]),
         )
     elif goal == "raise_ta":
+        _require(values, goal, "current", "target")
         dose = dose_baking_soda_for_ta(
             pool_gallons=pool_gallons,
             current_ta=float(values["current"]),
             target_ta=float(values["target"]),
         )
-    else:
-        raise ValueError(
-            "supported goals are raise_fc, raise_cya, raise_salt, raise_ch, and raise_ta"
+    elif goal == "lower_ph":
+        _require(values, goal, "current", "target", "ta")
+        dose = dose_muriatic_acid_for_ph(
+            pool_gallons=pool_gallons,
+            current_ph=float(values["current"]),
+            target_ph=float(values["target"]),
+            ta=float(values["ta"]),
+            cya=values.get("cya"),
+            borates=values.get("borates"),
         )
+    elif goal == "raise_ph":
+        _require(values, goal, "current", "target", "ta")
+        dose = dose_soda_ash_for_ph(
+            pool_gallons=pool_gallons,
+            current_ph=float(values["current"]),
+            target_ph=float(values["target"]),
+            ta=float(values["ta"]),
+            cya=values.get("cya"),
+            borates=values.get("borates"),
+        )
+    elif goal == "lower_by_dilution":
+        _require(values, goal, "current", "target")
+        dose = estimate_drain_for_dilution(
+            pool_gallons=pool_gallons,
+            current_ppm=float(values["current"]),
+            target_ppm=float(values["target"]),
+        )
+    elif goal == "swg_runtime":
+        _require(values, goal, "target", "cell_lbs_per_day")
+        dose = estimate_swg_runtime(
+            pool_gallons=pool_gallons,
+            cell_lbs_per_day=float(values["cell_lbs_per_day"]),
+            target_fc_per_day=float(values["target"]),
+            pump_hours_per_day=float(values.get("pump_hours") or 24.0),
+        )
+    else:
+        raise ValueError(f"supported goals are {', '.join(SUPPORTED_GOALS)}")
 
-    return {"goal": goal, "poolGallons": pool_gallons, "dose": dose.to_dict()}
+    return {"goal": goal, "poolGallons": pool_gallons, "dose": dose.to_dict(), **extra}
 
 
 def share_access_allowed(pool: dict[str, Any], token: str | None) -> bool:

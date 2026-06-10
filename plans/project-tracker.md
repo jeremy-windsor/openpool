@@ -16,7 +16,8 @@ history in this file.
 - Current commit at tracker creation: `c4aa4538296c`
 - Primary image: `ghcr.io/jeremy-windsor/openpool:latest`
 - Deployment posture: localhost, SSH tunnel, VPN, or trusted LAN only.
-- Current phase: Phase 3 - Chemistry and Logbook Core.
+- Current phase: Phase 3 complete; next is a real-pool pilot (checklist in
+  `docs/deployment.md`).
 
 ## Standing Decisions
 
@@ -107,6 +108,33 @@ history in this file.
     precision.
 - "Log this dose" now carries chemical/amount/unit/reason from the calculator
   result into the addition form via query params.
+
+### Phase 3D-3F - Acid/Base, Operational Helpers, Pilot Polish
+
+- pH dosing (approximate by design, labeled with confidence levels):
+  - Muriatic acid to lower pH via a closed-system carbonate buffer model with
+    cyanurate/borate corrections; reports the expected TA drop.
+  - Soda ash to raise pH with the same model; warns that aeration is often the
+    better first step; reports the expected TA rise.
+- Chemical side effects (`effects` on every dose result):
+  - Trichlor/dichlor/cal-hypo FC dosing with expected CYA/CH rise from
+    stoichiometry; trichlor acidity warning.
+  - Liquid chlorine reports its salt side effect.
+  - Calculator shows "Also changes (approximate)" on result cards.
+- Operational helpers as calculator goals:
+  - `slam_fc`: shock dose from the FC/CYA chart with SLAM process warnings.
+  - `lower_by_dilution`: water replacement math for CYA/salt/CH/borates, with
+    drain-then-refill vs drain-while-filling volumes.
+  - `swg_runtime`: percent output from cell rating, pool volume, daily FC
+    demand, and pump hours.
+- Calculator UI: goal-aware fields (JS show/hide), inline errors instead of
+  400 pages, per-goal result titles, "Log water replacement" links to a
+  prefilled maintenance event.
+- Pilot polish:
+  - History filters: record type and date range.
+  - Dashboard tiles label sanitizer-specific ranges "target" and generic
+    comfort ranges "typical".
+  - Pilot checklist added to `docs/deployment.md`.
 
 ### Phase 1-2 Finalization
 
@@ -207,8 +235,6 @@ Phase 3 focuses on required pool-care features:
 
 ## Active Concerns
 
-- Dashboard wording currently risks calling generic ranges "targets". Tighten
-  this in Phase 3.
 - Share tokens are plaintext in SQLite until auth/secrets handling exists.
 - Write APIs are open to any trusted-LAN client that can reach the app.
 - Metric support is stored as a preference but not implemented through inputs,
@@ -216,17 +242,13 @@ Phase 3 focuses on required pool-care features:
 
 ## Next Phase
 
-See `plans/phase-3-chemistry-logbook-core.md`.
+Phase 3 (`plans/phase-3-chemistry-logbook-core.md`) is complete: all seven
+slices (3A-3F) are built and tested. Next steps, in order:
 
-Remaining Phase 3 slices (1-4 are done):
-
-1. ~~Edit/delete readings and additions.~~ Done.
-2. ~~Maintenance events API/UI/export.~~ Done.
-3. ~~Calcium and TA dosing.~~ Done.
-4. ~~CSI.~~ Done.
-5. Acid/base and side effects (3D).
-6. SLAM, dilution/refill, and SWG runtime helpers (3E).
-7. Pilot polish and deployment checklist (3F).
+1. Run the pilot using the checklist in `docs/deployment.md`.
+2. Charts/trends on top of the now-complete history.
+3. Items under Moved Later as they earn their way in (auth before any wider
+   exposure, import/restore, metric UI).
 
 ## How To Update This Tracker
 

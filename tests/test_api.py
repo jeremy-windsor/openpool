@@ -287,3 +287,171 @@ def test_maintenance_pages(client):
     deleted = client.post(f"/maintenance/{event['id']}/delete", follow_redirects=False)
     assert deleted.status_code == 303
     assert client.get("/api/pools/example/maintenance").json() == []
+
+
+def test_calculate_raise_fc_with_trichlor_reports_cya_effect(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={
+            "goal": "raise_fc",
+            "current": 0,
+            "target": 10,
+            "pool_gallons": 10000,
+            "product": "trichlor",
+        },
+    )
+    assert response.status_code == 200
+    dose = response.json()["dose"]
+    assert dose["chemical"] == "trichlor"
+    assert abs(dose["effects"]["cya"] - 6.1) < 0.3
+    assert any("acidic" in warning for warning in dose["warnings"])
+
+
+def test_calculate_slam_uses_cya_shock_target(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "slam_fc", "current": 4, "cya": 40, "pool_gallons": 10000},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["targetFc"] == 16
+    assert body["dose"]["chemical"] == "liquid_chlorine"
+    assert any("SLAM is a process" in warning for warning in body["dose"]["warnings"])
+
+
+def test_calculate_lower_ph_returns_acid_and_ta_effect(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "cya": 40,
+            "pool_gallons": 10000,
+        },
+    )
+    assert response.status_code == 200
+    dose = response.json()["dose"]
+    assert dose["chemical"] == "muriatic_acid"
+    assert dose["confidence"] == "medium"
+    assert abs(dose["amount"] - 10.1) < 1.0
+    assert dose["effects"]["ta"] < 0
+
+
+def test_calculate_lower_ph_missing_ta_is_400(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "lower_ph", "current": 7.8, "target": 7.5},
+    )
+    assert response.status_code == 400
+    assert "ta" in response.json()["detail"]
+
+
+def test_calculate_raise_ph_returns_soda_ash(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={
+            "goal": "raise_ph",
+            "current": 7.2,
+            "target": 7.5,
+            "ta": 70,
+            "cya": 40,
+            "pool_gallons": 10000,
+        },
+    )
+    assert response.status_code == 200
+    dose = response.json()["dose"]
+    assert dose["chemical"] == "soda_ash"
+    assert dose["confidence"] == "low"
+    assert abs(dose["amount"] - 12.3) < 1.0
+    assert any("Aeration" in warning for warning in dose["warnings"])
+
+
+def test_calculate_dilution(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={
+            "goal": "lower_by_dilution",
+            "current": 100,
+            "target": 50,
+            "pool_gallons": 20000,
+        },
+    )
+    assert response.status_code == 200
+    dose = response.json()["dose"]
+    assert dose["chemical"] == "water_replacement"
+    assert dose["amount"] == 10000
+    assert dose["secondary"]["percent_of_pool"] == 50
+
+
+def test_calculate_swg_runtime(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={
+            "goal": "swg_runtime",
+            "target": 4,
+            "cell_lbs_per_day": 1.4,
+            "pump_hours": 24,
+            "pool_gallons": 10000,
+        },
+    )
+    assert response.status_code == 200
+    dose = response.json()["dose"]
+    assert dose["unit"] == "percent"
+    assert abs(dose["amount"] - 24) <= 1
+
+
+def test_calculate_swg_runtime_missing_cell_rating_is_400(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "swg_runtime", "target": 4},
+    )
+    assert response.status_code == 400
+    assert "cell_lbs_per_day" in response.json()["detail"]
+
+
+def test_calculator_page_renders_new_goals(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100},
+    )
+    assert response.status_code == 200
+    assert "muriatic acid" in response.text
+    assert "Also changes" in response.text
+
+
+def test_calculator_page_shows_inline_error_instead_of_400(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "lower_ph", "current": 7.8, "target": 7.5},
+    )
+    assert response.status_code == 200
+    assert "lower_ph needs: ta" in response.text
+
+
+def test_history_filters_by_record_type_and_date(client):
+    client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2026-06-01T12:00:00+00:00", "fc": 5},
+    )
+    client.post(
+        "/api/pools/example/additions",
+        json={
+            "added_at": "2026-06-05T12:00:00+00:00",
+            "chemical": "liquid_chlorine",
+            "amount": 10,
+            "unit": "fl_oz",
+        },
+    )
+
+    response = client.get("/history", params={"record": "additions"})
+    assert response.status_code == 200
+    assert "liquid chlorine" in response.text
+    assert "Tested" not in response.text  # readings table hidden
+
+    response = client.get(
+        "/history", params={"start": "2026-06-04", "end": "2026-06-06"}
+    )
+    assert response.status_code == 200
+    assert "liquid chlorine" in response.text
