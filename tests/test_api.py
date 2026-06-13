@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 
 def test_health_ok(client):
     response = client.get("/api/health")
@@ -493,3 +495,63 @@ def test_history_filters_by_record_type_and_date(client):
     )
     assert response.status_code == 200
     assert "liquid chlorine" in response.text
+
+
+def test_history_date_range_finds_rows_older_than_newest_100(client):
+    from openpool import db
+    from openpool.config import get_settings
+
+    conn = db.connect(get_settings().db_path)
+    try:
+        for offset in range(120):
+            day = date(2026, 7, 1) + timedelta(days=offset)
+            db.create_reading(
+                conn,
+                "example",
+                {"tested_at": f"{day.isoformat()}T12:00:00Z", "fc": 10 + offset},
+            )
+        db.create_reading(
+            conn,
+            "example",
+            {"tested_at": "2026-03-10T12:00:00Z", "fc": 1.23},
+        )
+        db.create_reading(
+            conn,
+            "example",
+            {"tested_at": "2026-03-11T12:00:00Z", "fc": 2.34},
+        )
+    finally:
+        conn.close()
+
+    response = client.get(
+        "/history",
+        params={"record": "readings", "start": "2026-03-10", "end": "2026-03-11"},
+    )
+
+    assert response.status_code == 200
+    assert "1.23" in response.text
+    assert "2.34" in response.text
+
+
+def test_history_date_range_uses_pool_local_inclusive_days(client):
+    for tested_at, fc in [
+        ("2026-06-01T06:59:59Z", 1.01),
+        ("2026-06-01T07:00:00Z", 2.02),
+        ("2026-06-02T06:59:59Z", 3.03),
+        ("2026-06-02T07:00:00Z", 4.04),
+    ]:
+        client.post(
+            "/api/pools/example/readings",
+            json={"tested_at": tested_at, "fc": fc},
+        )
+
+    response = client.get(
+        "/history",
+        params={"record": "readings", "start": "2026-06-01", "end": "2026-06-01"},
+    )
+
+    assert response.status_code == 200
+    assert "2.02" in response.text
+    assert "3.03" in response.text
+    assert "1.01" not in response.text
+    assert "4.04" not in response.text

@@ -507,18 +507,32 @@ def delete_reading(conn: sqlite3.Connection, pool_id: str, reading_id: str) -> N
     conn.commit()
 
 
-def list_readings(conn: sqlite3.Connection, pool_id: str, limit: int = 100) -> list[dict[str, Any]]:
+def list_readings(
+    conn: sqlite3.Connection,
+    pool_id: str,
+    limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
+) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from test_readings
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and tested_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and tested_at < ?"
+        params.append(end_utc)
+    query += """
+        order by tested_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from test_readings
-            where pool_id = ?
-            order by tested_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 
@@ -629,18 +643,28 @@ def list_additions(
     conn: sqlite3.Connection,
     pool_id: str,
     limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from chemical_additions
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and added_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and added_at < ?"
+        params.append(end_utc)
+    query += """
+        order by added_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from chemical_additions
-            where pool_id = ?
-            order by added_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 
@@ -685,18 +709,28 @@ def list_maintenance(
     conn: sqlite3.Connection,
     pool_id: str,
     limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from maintenance_events
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and event_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and event_at < ?"
+        params.append(end_utc)
+    query += """
+        order by event_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from maintenance_events
-            where pool_id = ?
-            order by event_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 

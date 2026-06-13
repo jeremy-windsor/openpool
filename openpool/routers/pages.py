@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 from sqlite3 import Connection
 from urllib.parse import parse_qs
@@ -288,21 +289,25 @@ def delete_maintenance_page(event_id: str, conn: Connection = Depends(get_db)):
     return RedirectResponse("/history", status_code=303)
 
 
-def _filter_by_date(
-    rows: list[dict], local_key: str, start: str | None, end: str | None
-) -> list[dict]:
-    """Keep rows whose pool-local date falls inside the inclusive range."""
-    if not start and not end:
-        return rows
-    kept = []
-    for row in rows:
-        day = (row.get(local_key) or "")[:10]
-        if start and day < start:
-            continue
-        if end and day > end:
-            continue
-        kept.append(row)
-    return kept
+def _history_utc_bounds(
+    start: str | None,
+    end: str | None,
+    timezone_name: str,
+) -> tuple[str | None, str | None]:
+    try:
+        start_utc = None
+        if start:
+            start_day = date.fromisoformat(start)
+            start_utc = db.normalize_timestamp(f"{start_day.isoformat()}T00:00:00", timezone_name)
+
+        end_utc = None
+        if end:
+            end_day = date.fromisoformat(end) + timedelta(days=1)
+            end_utc = db.normalize_timestamp(f"{end_day.isoformat()}T00:00:00", timezone_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return start_utc, end_utc
 
 
 @router.get("/history")
@@ -316,21 +321,20 @@ def history(
     pool_id = _pool_id()
     pool = db.get_pool(conn, pool_id)
     timezone_name = pool.get("timezone") if pool else "UTC"
-    readings = db.list_readings(conn, pool_id)
+    start_utc, end_utc = _history_utc_bounds(start, end, timezone_name)
+
+    readings = db.list_readings(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in readings:
         row["tested_at_local"] = db.local_timestamp(row.get("tested_at"), timezone_name)
-    additions = db.list_additions(conn, pool_id)
+    additions = db.list_additions(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in additions:
         row["added_at_local"] = db.local_timestamp(row.get("added_at"), timezone_name)
-    maintenance = db.list_maintenance(conn, pool_id)
+    maintenance = db.list_maintenance(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in maintenance:
         row["event_at_local"] = db.local_timestamp(row.get("event_at"), timezone_name)
 
     if record not in {"all", "readings", "additions", "maintenance"}:
         record = "all"
-    readings = _filter_by_date(readings, "tested_at_local", start, end)
-    additions = _filter_by_date(additions, "added_at_local", start, end)
-    maintenance = _filter_by_date(maintenance, "event_at_local", start, end)
 
     return templates.TemplateResponse(
         request=request,
