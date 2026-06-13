@@ -36,6 +36,44 @@ def test_create_and_list_reading(client):
     assert latest["fc"] == 3
 
 
+def test_bad_z_timestamp_returns_400(client):
+    response = client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2026-99-99T00:00Z", "fc": 3},
+    )
+
+    assert response.status_code == 400
+    assert "invalid timestamp" in response.json()["detail"]
+
+
+def test_malformed_stored_timestamp_does_not_crash_pages(client):
+    from openpool import db
+    from openpool.config import get_settings
+
+    created = client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2026-06-01T12:00:00Z", "fc": 3},
+    ).json()
+
+    conn = db.connect(get_settings().db_path)
+    try:
+        conn.execute(
+            "update test_readings set tested_at = ? where id = ?",
+            ("bad-timestampZ", created["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    dashboard = client.get("/")
+    history = client.get("/history")
+
+    assert dashboard.status_code == 200
+    assert history.status_code == 200
+    assert "bad-timestampZ" in dashboard.text
+    assert "bad-timestampZ" in history.text
+
+
 def test_calculate_liquid_chlorine(client):
     response = client.post(
         "/api/pools/example/calculate",

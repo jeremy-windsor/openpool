@@ -222,12 +222,13 @@ def normalize_timestamp(value: str | None, timezone_name: str = "UTC") -> str:
     text = str(value).strip()
     if not text:
         return now_utc()
+    original = text
     if text.endswith("Z"):
-        return text
+        text = f"{text[:-1]}+00:00"
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError as exc:
-        raise ValueError(f"invalid timestamp: {text}") from exc
+        raise ValueError(f"invalid timestamp: {original}") from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=ZoneInfo(validate_timezone_name(timezone_name)))
     return parsed.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -236,12 +237,16 @@ def normalize_timestamp(value: str | None, timezone_name: str = "UTC") -> str:
 def local_timestamp(value: str | None, timezone_name: str = "UTC") -> str | None:
     if not value:
         return None
-    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    return (
-        parsed.astimezone(ZoneInfo(validate_timezone_name(timezone_name)))
-        .replace(microsecond=0)
-        .isoformat()
-    )
+    text = str(value)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return (
+            parsed.astimezone(ZoneInfo(validate_timezone_name(timezone_name)))
+            .replace(microsecond=0)
+            .isoformat()
+        )
+    except ValueError:
+        return text
 
 
 def validate_pool_id(pool_id: str) -> str:

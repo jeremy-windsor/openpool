@@ -26,6 +26,22 @@ def test_reading_persists_and_computes_tc(conn):
     assert latest["tested_at"] == "2026-06-07T16:15:00Z"
 
 
+@pytest.mark.parametrize("tested_at", ["garbageZ", "2026-99-99T00:00Z"])
+def test_bad_z_timestamp_rejected_by_db(conn, tested_at):
+    with pytest.raises(ValueError, match="invalid timestamp"):
+        db.create_reading(conn, "example", {"tested_at": tested_at, "fc": 3})
+
+
+def test_z_timestamp_round_trips_canonically(conn):
+    reading = db.create_reading(
+        conn,
+        "example",
+        {"tested_at": "2026-06-01T12:00:00Z", "fc": 3},
+    )
+
+    assert reading["tested_at"] == "2026-06-01T12:00:00Z"
+
+
 def test_share_payload_excludes_notes_by_default(conn):
     db.create_reading(
         conn,
