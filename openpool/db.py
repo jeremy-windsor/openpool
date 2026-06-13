@@ -280,11 +280,21 @@ def generate_share_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-def _validate_share_token(data: dict[str, Any]) -> None:
-    enabled = data.get("share_enabled")
+def _share_enabled(value: Any) -> bool:
+    if isinstance(value, str):
+        return value in {"1", "true", "on"}
+    return value is True or value == 1
+
+
+def _validate_share_token(data: dict[str, Any], existing: dict[str, Any] | None = None) -> None:
+    enabled = data.get("share_enabled", existing.get("share_enabled") if existing else None)
     token = data.get("share_token")
-    if enabled in {1, "1", "true", "on"}:
+    existing_token = existing.get("share_token") if existing else None
+    if _share_enabled(enabled):
         if not token:
+            if existing_token:
+                data.pop("share_token", None)
+                return
             data["share_token"] = generate_share_token()
             return
         if len(str(token)) < MIN_SHARE_TOKEN_LENGTH:
@@ -370,10 +380,11 @@ def create_pool(conn: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, 
 
 def update_pool(conn: sqlite3.Connection, pool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     validate_pool_id(pool_id)
-    if not get_pool(conn, pool_id):
+    existing = get_pool(conn, pool_id)
+    if not existing:
         raise KeyError(pool_id)
     data = _clean_payload(payload, POOL_FIELDS - {"id"})
-    _validate_share_token(data)
+    _validate_share_token(data, existing)
     if "timezone" in data:
         validate_timezone_name(data.get("timezone") or "UTC")
     data["updated_at"] = now_utc()

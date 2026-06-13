@@ -70,6 +70,12 @@ Do not expose the service to the public internet yet. v1 has no login system.
 Public exposure should wait for authentication, token handling, rate limits, and
 reverse-proxy hardening.
 
+If you put `openpool` behind a reverse proxy, preserve the original `Host`
+header and pass standard forwarded headers such as `X-Forwarded-For`,
+`X-Forwarded-Proto`, and `Forwarded`. The app's write-safety checks compare
+request origin information to the effective host, so proxy header rewriting can
+break legitimate form/API writes or weaken those checks.
+
 Acceptable early exposure is localhost, SSH tunnel, private VPN, or a trusted
 LAN/VLAN where every client is allowed to read and write pool data. Anything
 else needs auth first. No exceptions; future-you is tired of cleaning up

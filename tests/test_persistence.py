@@ -88,6 +88,17 @@ def test_share_token_generated_when_enabled_without_one(conn):
     assert not services.share_access_allowed(updated, None)
 
 
+def test_share_token_preserved_when_enabled_with_existing_token(conn):
+    db.update_pool(conn, "example", {"share_token": "read-only-token-123"})
+
+    enabled = db.update_pool(conn, "example", {"share_enabled": 1})
+    renamed = db.update_pool(conn, "example", {"share_enabled": 1, "name": "Renamed Pool"})
+
+    assert enabled["share_token"] == "read-only-token-123"
+    assert renamed["share_token"] == "read-only-token-123"
+    assert renamed["name"] == "Renamed Pool"
+
+
 def test_invalid_pool_id_rejected(conn):
     with pytest.raises(ValueError):
         db.get_pool(conn, "../nope")

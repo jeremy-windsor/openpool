@@ -11,6 +11,12 @@ def test_health_ok(client):
     assert body["app"] == "openpool"
 
 
+def test_responses_include_nosniff_header(client):
+    response = client.get("/api/health")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
 def test_version_reports_build_metadata(client):
     body = client.get("/api/version").json()
     assert body["app"] == "openpool"
@@ -109,6 +115,23 @@ def test_share_enabled_with_token(client):
     allowed = client.get("/share/example.json", params={"token": "read-only-token-123"})
     assert allowed.status_code == 200
     assert allowed.json()["pool"]["id"] == "example"
+
+
+def test_pool_update_preserves_existing_share_token(client):
+    client.put(
+        "/api/pools/example",
+        json={"share_enabled": True, "share_token": "read-only-token-123"},
+    )
+
+    updated = client.put(
+        "/api/pools/example",
+        json={"name": "Renamed Pool", "share_enabled": True},
+    )
+    allowed = client.get("/share/example.json", params={"token": "read-only-token-123"})
+
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Renamed Pool"
+    assert allowed.status_code == 200
 
 
 def test_share_response_never_includes_token(client):

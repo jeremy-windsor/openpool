@@ -11,12 +11,6 @@ def get_db() -> Iterator[Connection]:
     settings = get_settings()
     conn = db.connect(settings.db_path)
     try:
-        db.init_db(conn)
-        db.ensure_default_pool(
-            conn,
-            settings.default_pool_id,
-            settings.default_timezone,
-        )
         yield conn
     finally:
         conn.close()
