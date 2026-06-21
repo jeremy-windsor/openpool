@@ -249,3 +249,35 @@ def test_status_summary_levels(conn):
     db.create_reading(conn, "example", {"tested_at": "2026-06-02T08:00", "fc": 6, "cya": 40})
     good = db.latest_reading(conn, "example")
     assert services.status_summary(pool, good)["level"] == "good"
+    assert services.status_summary(pool, good)["text"] == "All readings in range"
+
+
+def test_status_summary_cautions_for_non_chlorine_out_of_range(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {
+        "fc": 6,
+        "cya": 40,
+        "ch": 900,
+        "csi": 0.7,
+    }
+
+    status = services.status_summary(pool, reading)
+
+    assert status["level"] == "caution"
+    assert status["text"] == "2 readings outside range"
+    assert "Balanced" not in status["text"]
+    assert "chlorine" not in status["text"].lower()
+
+
+def test_status_summary_uses_singular_outside_range_copy(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {
+        "fc": 6,
+        "cya": 40,
+        "ch": 900,
+    }
+
+    status = services.status_summary(pool, reading)
+
+    assert status["level"] == "caution"
+    assert status["text"] == "1 reading outside range"

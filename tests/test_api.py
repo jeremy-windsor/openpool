@@ -30,6 +30,20 @@ def test_dashboard_renders(client):
     assert "openpool" in response.text.lower()
 
 
+def test_dashboard_cautions_for_non_chlorine_out_of_range_readings(client):
+    created = client.post(
+        "/api/pools/example/readings",
+        json={"fc": 6, "cya": 40, "ch": 900, "csi": 0.7},
+    )
+    assert created.status_code == 201
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "2 readings outside range" in response.text
+    assert "Balanced - no action needed" not in response.text
+
+
 def test_help_page_links_generated_api_docs(client):
     response = client.get("/help")
 

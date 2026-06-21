@@ -316,12 +316,19 @@ def recommended_actions(
 def status_summary(pool: dict[str, Any], reading: dict[str, Any] | None) -> dict[str, str]:
     if not reading:
         return {"level": "empty", "text": "No readings yet"}
+
     actions = recommended_actions(pool, reading)
-    if not actions:
-        return {"level": "good", "text": "Balanced - no action needed"}
     if any(action["severity"] == "danger" for action in actions):
         return {"level": "danger", "text": "Act now - low FC"}
-    return {"level": "caution", "text": "Add chlorine today"}
+
+    targets = fc_cya_targets(reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine")
+    tiles = reading_tiles(reading, targets, pool.get("sanitizer") or "liquid_chlorine")
+    outside_count = sum(tile["state"] in {"low", "high"} for tile in tiles)
+    if outside_count:
+        reading_text = "reading" if outside_count == 1 else "readings"
+        return {"level": "caution", "text": f"{outside_count} {reading_text} outside range"}
+
+    return {"level": "good", "text": "All readings in range"}
 
 
 def build_snapshot(conn: db.Connection, pool_id: str) -> dict[str, Any]:

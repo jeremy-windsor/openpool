@@ -98,6 +98,17 @@ a {
   color: var(--brand-700);
 }
 
+.brand:focus-visible,
+.icon-button:focus-visible,
+.topnav-links a:focus-visible,
+.navitem:focus-visible,
+.button:focus-visible,
+button.button:focus-visible,
+button[type="submit"]:focus-visible {
+  outline: 3px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
 .icon-button {
   width: 44px;
   height: 44px;
@@ -347,7 +358,7 @@ button[type="submit"]:hover {
   filter: brightness(1.05);
 }
 
-/* ---------- Reading tiles + RangeBar ---------- */
+/* ---------- Reading tiles + range meter ---------- */
 .reading-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -415,50 +426,30 @@ button[type="submit"]:hover {
   color: var(--caution-800);
 }
 
-.rangebar {
-  position: relative;
-  display: block;
+.range-meter {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
   height: 8px;
   margin-top: 4px;
+}
+
+.range-segment {
+  height: 8px;
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
 
-.rangebar-band {
-  position: absolute;
-  top: 50%;
-  left: 30%;
-  width: 40%;
-  height: 8px;
-  transform: translateY(-50%);
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--good-700) 26%, transparent);
+.range-meter-low .range-segment-low,
+.range-meter-high .range-segment-high {
+  background: color-mix(in srgb, var(--caution-800) 76%, var(--surface));
+  border-color: color-mix(in srgb, var(--caution-800) 60%, var(--border));
 }
 
-.rangebar-dot {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: var(--good-700);
-  border: 2px solid var(--surface);
-  box-shadow: 0 0 0 1px var(--good-700);
-}
-
-.rangebar-low .rangebar-dot {
-  left: 12%;
-  background: var(--caution-800);
-  box-shadow: 0 0 0 1px var(--caution-800);
-}
-
-.rangebar-high .rangebar-dot {
-  left: 88%;
-  background: var(--caution-800);
-  box-shadow: 0 0 0 1px var(--caution-800);
+.range-meter-ok .range-segment-ok {
+  background: color-mix(in srgb, var(--good-700) 72%, var(--surface));
+  border-color: color-mix(in srgb, var(--good-700) 58%, var(--border));
 }
 
 /* ---------- Empty state ---------- */
