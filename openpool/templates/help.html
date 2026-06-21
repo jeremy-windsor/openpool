@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <h1>Help</h1>
+  <p>OpenPool is a local-first pool chemistry logbook and calculator for tracking tests, doses, maintenance, and water balance. It keeps the day-to-day UI simple while exposing the same pool data through a generated API for backups, dashboards, and local automation.</p>
+</section>
+
+<section>
+  <h2 class="section-title">API Reference</h2>
+  <article class="card">
+    <p>The authoritative, always-current API reference is generated from this running OpenPool app at /docs and /openapi.json. Use the generated OpenAPI when you need exact request and response schemas for the version you are running.</p>
+    <div class="button-row">
+      <a class="button" href="/docs">Interactive Docs</a>
+      <a class="button" href="/redoc">ReDoc</a>
+      <a class="button" href="/openapi.json">OpenAPI JSON</a>
+    </div>
+    <p class="muted help-note">Repository docs such as README.md, docs/formulas.md, and docs/deployment.md live with the project source in GitHub; this app does not render repository markdown.</p>
+  </article>
+</section>
+
+<section>
+  <h2 class="section-title">API Quickstart</h2>
+  <article class="card">
+    <h3>Health</h3>
+    <pre class="code-block"><code>curl {{ base_url }}/api/health</code></pre>
+
+    <h3>List pools</h3>
+    <pre class="code-block"><code>curl {{ base_url }}/api/pools</code></pre>
+
+    <h3>Create a reading</h3>
+    <pre class="code-block"><code>curl -X POST {{ base_url }}/api/pools/{{ pool_id }}/readings \
+  -H 'Content-Type: application/json' \
+  -d '{"fc": 4, "cc": 0, "ph": 7.6, "ta": 80, "ch": 350, "cya": 40}'</code></pre>
+  </article>
+</section>
+{% endblock %}

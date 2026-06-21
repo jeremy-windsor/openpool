@@ -30,6 +30,82 @@ def test_dashboard_renders(client):
     assert "openpool" in response.text.lower()
 
 
+def test_help_page_links_generated_api_docs(client):
+    response = client.get("/help")
+
+    assert response.status_code == 200
+    assert 'href="/docs"' in response.text
+    assert 'href="/redoc"' in response.text
+    assert 'href="/openapi.json"' in response.text
+
+
+def test_help_page_uses_configured_default_pool_id(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.delenv("OPENPOOL_DATABASE_URL", raising=False)
+    monkeypatch.setenv("OPENPOOL_DB", str(tmp_path / "openpool.sqlite"))
+    monkeypatch.setenv("OPENPOOL_DEFAULT_POOL_ID", "configured-pool")
+    monkeypatch.setenv("OPENPOOL_TIMEZONE", "America/Phoenix")
+
+    from openpool.main import create_app
+
+    with TestClient(create_app()) as test_client:
+        response = test_client.get("/help")
+
+    assert response.status_code == 200
+    assert "http://testserver/api/pools/configured-pool/readings" in response.text
+
+
+def test_openapi_json_returns_expected_document(client):
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {"openapi", "info", "paths"} <= body.keys()
+    assert body["info"]["title"] == "openpool"
+    assert isinstance(body["paths"], dict)
+
+
+def test_openapi_paths_match_current_routes(client):
+    response = client.get("/openapi.json")
+
+    assert set(response.json()["paths"]) == {
+        "/",
+        "/additions/new",
+        "/additions/{addition_id}/delete",
+        "/additions/{addition_id}/edit",
+        "/api/health",
+        "/api/pools",
+        "/api/pools/{pool_id}",
+        "/api/pools/{pool_id}/additions",
+        "/api/pools/{pool_id}/additions/{addition_id}",
+        "/api/pools/{pool_id}/calculate",
+        "/api/pools/{pool_id}/export/additions.csv",
+        "/api/pools/{pool_id}/export/all.json",
+        "/api/pools/{pool_id}/export/maintenance.csv",
+        "/api/pools/{pool_id}/export/readings.csv",
+        "/api/pools/{pool_id}/maintenance",
+        "/api/pools/{pool_id}/maintenance/{event_id}",
+        "/api/pools/{pool_id}/readings",
+        "/api/pools/{pool_id}/readings/latest",
+        "/api/pools/{pool_id}/readings/{reading_id}",
+        "/api/pools/{pool_id}/share.json",
+        "/api/version",
+        "/calculator",
+        "/help",
+        "/history",
+        "/maintenance/new",
+        "/maintenance/{event_id}/delete",
+        "/maintenance/{event_id}/edit",
+        "/readings/new",
+        "/readings/{reading_id}/delete",
+        "/readings/{reading_id}/edit",
+        "/settings",
+        "/share/{pool_id}",
+        "/share/{pool_id}.json",
+    }
+
+
 def test_create_and_list_reading(client):
     created = client.post(
         "/api/pools/example/readings",

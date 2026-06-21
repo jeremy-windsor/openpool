@@ -51,6 +51,19 @@ def dashboard(request: Request, conn: db.Connection = Depends(get_db)):
     )
 
 
+@router.get("/help")
+def help_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="help.html",
+        context={
+            "title": "Help",
+            "base_url": str(request.base_url).rstrip("/"),
+            "pool_id": _pool_id(),
+        },
+    )
+
+
 @router.get("/readings/new")
 def new_reading(request: Request, conn: db.Connection = Depends(get_db)):
     pool_id = _pool_id()

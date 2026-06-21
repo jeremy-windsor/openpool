@@ -637,6 +637,27 @@ button.link-button:hover {
   text-decoration: underline;
 }
 
+/* ---------- Help page ---------- */
+.help-note {
+  margin: 14px 0 0;
+}
+
+.code-block {
+  overflow-x: auto;
+  margin: 0 0 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.code-block:last-child {
+  margin-bottom: 0;
+}
+
 /* ---------- Bottom navigation ---------- */
 .bottomnav {
   position: fixed;
