@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from openpool import db, services
@@ -112,6 +114,84 @@ def test_reading_schema_rejects_impossible_values():
 def test_default_pool_uses_configured_timezone(conn):
     pool = db.get_pool(conn, "example")
     assert pool["timezone"] == "America/Phoenix"
+
+
+def test_settings_default_pool_id_falls_back_to_pool(monkeypatch):
+    from openpool.config import get_settings
+
+    monkeypatch.delenv("OPENPOOL_DEFAULT_POOL_ID", raising=False)
+
+    assert get_settings().default_pool_id == "pool"
+
+
+def test_ensure_default_pool_creates_pool_by_default(tmp_path):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+
+        pool = db.ensure_default_pool(conn, timezone_name="America/Phoenix")
+
+        assert pool["id"] == "pool"
+        assert pool["timezone"] == "America/Phoenix"
+    finally:
+        conn.close()
+
+
+def test_create_pool_without_id_uses_pool(tmp_path):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+
+        pool = db.create_pool(conn, {})
+
+        assert pool["id"] == "pool"
+    finally:
+        conn.close()
+
+
+def test_ensure_default_pool_adopts_sole_existing_pool(tmp_path, caplog):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+        db.create_pool(conn, {"id": "example", "timezone": "America/Phoenix"})
+        caplog.set_level(logging.WARNING, logger="openpool.db")
+
+        pool = db.ensure_default_pool(conn, "pool", "UTC")
+
+        assert pool["id"] == "example"
+        assert [existing["id"] for existing in db.list_pools(conn)] == ["example"]
+        assert "using existing pool id 'example'" in caplog.text
+    finally:
+        conn.close()
+
+
+def test_startup_adopts_sole_existing_pool_for_pages(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    db_path = tmp_path / "openpool.sqlite"
+    conn = db.connect(db_path)
+    try:
+        db.init_db(conn)
+        db.create_pool(conn, {"id": "example", "timezone": "America/Phoenix"})
+    finally:
+        conn.close()
+
+    monkeypatch.delenv("OPENPOOL_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OPENPOOL_DEFAULT_POOL_ID", raising=False)
+    monkeypatch.setenv("OPENPOOL_DB", str(db_path))
+    monkeypatch.setenv("OPENPOOL_TIMEZONE", "America/Phoenix")
+
+    from openpool.main import create_app
+
+    with TestClient(create_app()) as test_client:
+        dashboard = test_client.get("/")
+        help_page = test_client.get("/help")
+        pools = test_client.get("/api/pools").json()
+
+    assert dashboard.status_code == 200
+    assert help_page.status_code == 200
+    assert "http://testserver/api/pools/example/readings" in help_page.text
+    assert [pool["id"] for pool in pools] == ["example"]
 
 
 def test_connect_rejects_libpq_keyword_dsn():

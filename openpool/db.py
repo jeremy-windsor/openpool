@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 import sqlite3
@@ -13,10 +14,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from openpool.chemistry.csi import calculate_csi
 
+DEFAULT_POOL_ID = "pool"
 POOL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MIN_SHARE_TOKEN_LENGTH = 16
 POSTGRES_SCHEMES = ("postgresql://", "postgres://")
 REAL_TYPE_RE = re.compile(r"\breal\b", re.IGNORECASE)
+LOGGER = logging.getLogger(__name__)
 
 
 class Cursor(Protocol):
@@ -399,12 +402,24 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
 
 def ensure_default_pool(
     conn: Connection,
-    pool_id: str = "example",
+    pool_id: str = DEFAULT_POOL_ID,
     timezone_name: str = "UTC",
 ) -> dict[str, Any]:
     existing = get_pool(conn, pool_id)
     if existing:
         return existing
+
+    pools = list_pools(conn)
+    if len(pools) == 1:
+        adopted = pools[0]
+        LOGGER.warning(
+            "Configured default pool id %r is missing; using existing pool id %r "
+            "instead of creating a second default pool.",
+            pool_id,
+            adopted["id"],
+        )
+        return adopted
+
     timezone_name = validate_timezone_name(timezone_name)
     return create_pool(
         conn,
@@ -424,7 +439,7 @@ def create_pool(conn: Connection, payload: dict[str, Any]) -> dict[str, Any]:
     data = _clean_payload(payload, POOL_FIELDS)
     _validate_share_token(data)
     validate_timezone_name(data.get("timezone") or "UTC")
-    pool_id = validate_pool_id(str(data.get("id") or "example"))
+    pool_id = validate_pool_id(str(data.get("id") or DEFAULT_POOL_ID))
     timestamp = now_utc()
     row = {
         "id": pool_id,

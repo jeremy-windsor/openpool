@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from openpool.db import DEFAULT_POOL_ID
+
 POSTGRES_SCHEMES = ("postgresql://", "postgres://")
 
 
@@ -46,7 +48,7 @@ def get_settings() -> Settings:
         database_url=database_url,
         host=os.getenv("OPENPOOL_HOST", "127.0.0.1"),
         port=int(os.getenv("OPENPOOL_PORT", "5280")),
-        default_pool_id=os.getenv("OPENPOOL_DEFAULT_POOL_ID", "example"),
+        default_pool_id=os.getenv("OPENPOOL_DEFAULT_POOL_ID", DEFAULT_POOL_ID),
         default_timezone=os.getenv("OPENPOOL_TIMEZONE") or os.getenv("TZ", "UTC"),
         build_sha=os.getenv("OPENPOOL_BUILD_SHA", "unknown"),
         build_ref=os.getenv("OPENPOOL_BUILD_REF", "unknown"),
