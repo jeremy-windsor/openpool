@@ -574,6 +574,27 @@ def test_calculator_page_renders_new_goals(client):
     assert "Also changes" in response.text
 
 
+def test_calculator_page_accepts_blank_optional_numeric_query_fields(client):
+    response = client.get(
+        "/calculator?goal=raise_fc&product=liquid_chlorine&current=6&target=12"
+        "&ta=&cya=&borates=&cell_lbs_per_day=&pump_hours=&pool_gallons=18500&strength=12"
+    )
+
+    assert response.status_code == 200
+    assert "Add 118.4 fl oz" in response.text
+    assert "liquid chlorine" in response.text
+
+
+def test_calculator_page_shows_inline_error_for_invalid_numeric_query(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "raise_fc", "current": "six", "target": "12"},
+    )
+
+    assert response.status_code == 200
+    assert "current must be a number" in response.text
+
+
 def test_calculator_page_shows_inline_error_instead_of_400(client):
     response = client.get(
         "/calculator",
@@ -581,6 +602,14 @@ def test_calculator_page_shows_inline_error_instead_of_400(client):
     )
     assert response.status_code == 200
     assert "lower_ph needs: ta" in response.text
+
+
+def test_calculator_page_without_params_renders_form(client):
+    response = client.get("/calculator")
+
+    assert response.status_code == 200
+    assert "<h1>Calculator</h1>" in response.text
+    assert "dose-card" not in response.text
 
 
 def test_history_filters_by_record_type_and_date(client):

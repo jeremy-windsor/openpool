@@ -337,6 +337,15 @@ def _history_utc_bounds(
     return start_utc, end_utc
 
 
+def _parse_optional_float(name: str, raw: str | None) -> tuple[float | None, str | None]:
+    if raw is None or raw.strip() == "":
+        return None, None
+    try:
+        return float(raw), None
+    except ValueError:
+        return None, f"{name.replace('_', ' ')} must be a number"
+
+
 @router.get("/history")
 def history(
     request: Request,
@@ -383,16 +392,16 @@ def history(
 def calculator(
     request: Request,
     goal: str = "raise_fc",
-    current: float | None = None,
-    target: float | None = None,
-    pool_gallons: float | None = None,
-    strength: float | None = None,
+    current: str | None = None,
+    target: str | None = None,
+    pool_gallons: str | None = None,
+    strength: str | None = None,
     product: str | None = None,
-    ta: float | None = None,
-    cya: float | None = None,
-    borates: float | None = None,
-    cell_lbs_per_day: float | None = None,
-    pump_hours: float | None = None,
+    ta: str | None = None,
+    cya: str | None = None,
+    borates: str | None = None,
+    cell_lbs_per_day: str | None = None,
+    pump_hours: str | None = None,
     conn: db.Connection = Depends(get_db),
 ):
     pool_id = _pool_id(request)
@@ -400,28 +409,35 @@ def calculator(
     if not pool:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
 
-    values = {
+    raw_numbers = {
         "current": current,
         "target": target,
         "pool_gallons": pool_gallons,
         "strength": strength,
-        "product": product,
         "ta": ta,
         "cya": cya,
         "borates": borates,
         "cell_lbs_per_day": cell_lbs_per_day,
         "pump_hours": pump_hours,
     }
+    values = {"product": product}
+    parse_errors: list[str] = []
+    for name, raw in raw_numbers.items():
+        parsed, parse_error = _parse_optional_float(name, raw)
+        values[name] = parsed
+        if parse_error:
+            parse_errors.append(parse_error)
+
     # Only attempt a calculation once the goal's primary inputs are filled in;
     # anything still missing surfaces as an inline form error, not a 400 page.
     ready = {
-        "slam_fc": current is not None,
-        "swg_runtime": target is not None or cell_lbs_per_day is not None,
-    }.get(goal, current is not None and target is not None)
+        "slam_fc": values["current"] is not None,
+        "swg_runtime": values["target"] is not None or values["cell_lbs_per_day"] is not None,
+    }.get(goal, values["current"] is not None and values["target"] is not None)
 
     result = None
-    error = None
-    if ready:
+    error = "; ".join(parse_errors) if parse_errors else None
+    if ready and not error:
         try:
             result = services.calculate_goal(pool, goal, values)
         except ValueError as exc:
