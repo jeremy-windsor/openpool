@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ snapshot.pool.name }} - openpool</title>
+    <link rel="stylesheet" href="/static/tokens.css">
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body class="share-page">
+    <main class="page">
+      <section class="hero-status status-{{ snapshot.status.level }}">
+        <h1>{{ snapshot.pool.name }}</h1>
+        <p class="status-label">{{ snapshot.status.text }}</p>
+        {% if snapshot.overview %}
+        <p class="muted">Tested {{ snapshot.overview.testedAtLocal or snapshot.overview.testedAt }}</p>
+        {% endif %}
+      </section>
+      {% if snapshot.overview %}
+      <section>
+        {% with tiles = snapshot.tiles %}{% include "_reading_tiles.html" %}{% endwith %}
+      </section>
+      {% endif %}
+      <footer class="muted">openpool</footer>
+    </main>
+  </body>
+</html>

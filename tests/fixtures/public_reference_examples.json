@@ -1,0 +1,244 @@
+{
+  "note": "Public pool-chemistry reference cases. Values derived from public identities and mass conversions, not from any proprietary app. Tolerances are practical dosing tolerances.",
+  "liquid_chlorine": [
+    {
+      "name": "1 ppm FC in 10k gal at 10 percent",
+      "pool_gallons": 10000,
+      "current_fc": 4,
+      "target_fc": 5,
+      "chlorine_percent": 10,
+      "expected_fl_oz": 12.8,
+      "expected_gallons": 0.1,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "5 ppm FC in 20k gal at 12.5 percent",
+      "pool_gallons": 20000,
+      "current_fc": 1,
+      "target_fc": 6,
+      "chlorine_percent": 12.5,
+      "expected_fl_oz": 102.4,
+      "expected_gallons": 0.8,
+      "tolerance_pct": 2
+    }
+  ],
+  "dry_stabilizer": [
+    {
+      "name": "10 ppm CYA in 10k gal",
+      "pool_gallons": 10000,
+      "current_cya": 30,
+      "target_cya": 40,
+      "expected_oz_weight": 13.4,
+      "expected_pounds": 0.83,
+      "tolerance_pct": 2
+    }
+  ],
+  "salt": [
+    {
+      "name": "1000 ppm salt in 10k gal",
+      "pool_gallons": 10000,
+      "current_salt": 2200,
+      "target_salt": 3200,
+      "expected_pounds": 83.5,
+      "expected_bags": 2.09,
+      "tolerance_pct": 2
+    }
+  ],
+  "calcium_chloride": [
+    {
+      "name": "10 ppm CH in 10k gal, dihydrate",
+      "pool_gallons": 10000,
+      "current_ch": 240,
+      "target_ch": 250,
+      "product": "calcium_chloride_dihydrate",
+      "expected_oz_weight": 19.6,
+      "expected_pounds": 1.23,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "10 ppm CH in 10k gal, anhydrous",
+      "pool_gallons": 10000,
+      "current_ch": 240,
+      "target_ch": 250,
+      "product": "calcium_chloride",
+      "expected_oz_weight": 14.8,
+      "expected_pounds": 0.93,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "30 ppm CH in 20k gal, dihydrate",
+      "pool_gallons": 20000,
+      "current_ch": 220,
+      "target_ch": 250,
+      "product": "calcium_chloride_dihydrate",
+      "expected_oz_weight": 117.7,
+      "expected_pounds": 7.35,
+      "tolerance_pct": 2
+    }
+  ],
+  "baking_soda": [
+    {
+      "name": "10 ppm TA in 10k gal",
+      "pool_gallons": 10000,
+      "current_ta": 60,
+      "target_ta": 70,
+      "expected_oz_weight": 22.4,
+      "expected_pounds": 1.4,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "30 ppm TA in 15k gal",
+      "pool_gallons": 15000,
+      "current_ta": 50,
+      "target_ta": 80,
+      "expected_oz_weight": 100.9,
+      "expected_pounds": 6.3,
+      "tolerance_pct": 2
+    }
+  ],
+  "csi": [
+    {
+      "name": "balanced pool, slight negative",
+      "ph": 7.5,
+      "ta": 70,
+      "ch": 350,
+      "cya": 40,
+      "water_temp_f": 80,
+      "salt": 3000,
+      "expected_csi": -0.21,
+      "tolerance_abs": 0.02
+    },
+    {
+      "name": "defaults applied when optional inputs missing",
+      "ph": 7.6,
+      "ta": 80,
+      "ch": 400,
+      "expected_csi": 0.15,
+      "tolerance_abs": 0.02,
+      "expected_warning_count": 3
+    }
+  ],
+  "fc_cya_targets": [
+    {
+      "name": "liquid chlorine, CYA 35 rounds up to 40 bucket",
+      "sanitizer": "liquid_chlorine",
+      "cya": 35,
+      "expected_bucket": 40,
+      "expected_minimum": 3,
+      "expected_target_low": 5,
+      "expected_target_high": 7,
+      "expected_slam": 16
+    },
+    {
+      "name": "swg, CYA 70 bucket",
+      "sanitizer": "swg",
+      "cya": 70,
+      "expected_bucket": 70,
+      "expected_minimum": 3,
+      "expected_target_low": 5,
+      "expected_target_high": 6,
+      "expected_slam": 28
+    }
+  ],
+  "dry_chlorine": [
+    {
+      "name": "10 ppm FC from trichlor in 10k gal adds about 6 ppm CYA",
+      "pool_gallons": 10000,
+      "current_fc": 0,
+      "target_fc": 10,
+      "product": "trichlor",
+      "expected_oz_weight": 14.6,
+      "expected_cya_effect": 6.1,
+      "tolerance_pct": 3
+    },
+    {
+      "name": "10 ppm FC from dichlor in 10k gal adds about 9 ppm CYA",
+      "pool_gallons": 10000,
+      "current_fc": 0,
+      "target_fc": 10,
+      "product": "dichlor",
+      "expected_oz_weight": 24.1,
+      "expected_cya_effect": 9.1,
+      "tolerance_pct": 3
+    },
+    {
+      "name": "10 ppm FC from 65 percent cal-hypo in 10k gal adds about 7 ppm CH",
+      "pool_gallons": 10000,
+      "current_fc": 0,
+      "target_fc": 10,
+      "product": "cal_hypo",
+      "expected_oz_weight": 20.5,
+      "expected_ch_effect": 7.1,
+      "tolerance_pct": 3
+    }
+  ],
+  "muriatic_acid": [
+    {
+      "name": "model reproduces the public TA identity: 1 gal per 10k gal drops TA 50 ppm",
+      "note": "validated via fl_oz per ppm constant: 50 ppm of demand = about 128 fl oz",
+      "pool_gallons": 10000,
+      "demand_ppm": 50,
+      "expected_fl_oz": 128,
+      "tolerance_pct": 2
+    },
+    {
+      "name": "pH 7.8 to 7.5 at TA 100, CYA 40, 10k gal",
+      "note": "derived from the documented buffer model; approximate by design",
+      "pool_gallons": 10000,
+      "current_ph": 7.8,
+      "target_ph": 7.5,
+      "ta": 100,
+      "cya": 40,
+      "expected_fl_oz": 10.1,
+      "expected_ta_drop": 3.9,
+      "tolerance_pct": 5
+    }
+  ],
+  "soda_ash": [
+    {
+      "name": "pH 7.2 to 7.5 at TA 70, CYA 40, 10k gal matches the public 3/4 lb chart value",
+      "pool_gallons": 10000,
+      "current_ph": 7.2,
+      "target_ph": 7.5,
+      "ta": 70,
+      "cya": 40,
+      "expected_oz_weight": 12.3,
+      "expected_pounds": 0.77,
+      "tolerance_pct": 6
+    }
+  ],
+  "dilution": [
+    {
+      "name": "halving CYA replaces half the water",
+      "pool_gallons": 20000,
+      "current_ppm": 100,
+      "target_ppm": 50,
+      "expected_gallons": 10000,
+      "expected_percent": 50,
+      "expected_continuous_gallons": 13863,
+      "tolerance_pct": 1
+    }
+  ],
+  "swg_runtime": [
+    {
+      "name": "1.4 lb/day cell, 10k gal, 4 ppm/day, 24 h pump",
+      "pool_gallons": 10000,
+      "cell_lbs_per_day": 1.4,
+      "target_fc_per_day": 4,
+      "pump_hours_per_day": 24,
+      "expected_percent": 24,
+      "expected_ppm_per_day_at_100": 16.8,
+      "tolerance_pct": 3
+    },
+    {
+      "name": "same cell with an 8 h pump day needs three times the output",
+      "pool_gallons": 10000,
+      "cell_lbs_per_day": 1.4,
+      "target_fc_per_day": 4,
+      "pump_hours_per_day": 8,
+      "expected_percent": 72,
+      "expected_ppm_per_day_at_100": 16.8,
+      "tolerance_pct": 3
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+services:
+  openpool:
+    image: ghcr.io/jeremy-windsor/openpool:latest
+    container_name: openpool
+    ports:
+      - "127.0.0.1:5280:5280"
+    volumes:
+      - ./data:/data
+    environment:
+      OPENPOOL_DB: /data/openpool.sqlite
+      OPENPOOL_TIMEZONE: America/Phoenix
+      TZ: America/Phoenix
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

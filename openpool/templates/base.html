@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0E7CA6">
+    <title>{{ title }} - openpool</title>
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="stylesheet" href="/static/tokens.css">
+    <link rel="stylesheet" href="/static/app.css">
+    <script>
+      // Apply the saved (or URL-overridden) theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get("theme");
+          var valid = { light: 1, dark: 1, outdoor: 1 };
+          var t = valid[q] ? q : localStorage.getItem("op-theme");
+          if (q && valid[q]) localStorage.setItem("op-theme", q);
+          if (t && t !== "system") document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">
+        <svg class="brand-mark" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 14c2 0 2 1.5 4.5 1.5S9.5 14 12 14s2 1.5 4.5 1.5S19 14 21 14" />
+          <path d="M3 18c2 0 2 1.5 4.5 1.5S9.5 18 12 18s2 1.5 4.5 1.5S19 18 21 18" />
+          <path d="M12 3c2.2 2.4 4 4.7 4 7a4 4 0 0 1-8 0c0-2.3 1.8-4.6 4-7Z" />
+        </svg>
+        <span>openpool</span>
+      </a>
+      <nav class="topnav-links" aria-label="Primary">
+        <a href="/">Home</a>
+        <a href="/history">History</a>
+        <a href="/readings/new">Add reading</a>
+        <a href="/additions/new">Log dose</a>
+        <a href="/calculator">Calculator</a>
+      </nav>
+      <div class="topnav">
+        <button type="button" class="icon-button" id="theme-toggle" aria-label="Switch theme" title="Switch theme">
+          <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+        </button>
+        <a class="icon-button" href="/settings" aria-label="Settings" title="Settings">
+          <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        </a>
+      </div>
+    </header>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+    <nav class="bottomnav" aria-label="Primary">
+      <a class="navitem" href="/" aria-label="Home">
+        <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 4l9 6.5"/><path d="M5 9.5V20h14V9.5"/></svg>
+        <span>Home</span>
+      </a>
+      <a class="navitem" href="/history" aria-label="History">
+        <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>History</span>
+      </a>
+      <a class="navitem navitem-primary" href="/readings/new" aria-label="Add reading">
+        <span class="fab"><svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span>Add</span>
+      </a>
+      <a class="navitem" href="/additions/new" aria-label="Log a dose">
+        <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 3.5 5 6 5 8.5a5 5 0 0 1-10 0C7 9 9 6.5 12 3Z"/></svg>
+        <span>Dose</span>
+      </a>
+      <a class="navitem" href="/calculator" aria-label="Calculator">
+        <svg class="icon" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M8 15h2M12 15h2"/></svg>
+        <span>Calc</span>
+      </a>
+    </nav>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

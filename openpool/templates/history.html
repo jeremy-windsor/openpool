@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <div class="section-head">
+    <h1>History</h1>
+    <div class="button-row">
+      <a class="button" href="/api/pools/{{ pool_id }}/export/readings.csv">Readings CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/additions.csv">Additions CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/maintenance.csv">Maintenance CSV</a>
+      <a class="button" href="/api/pools/{{ pool_id }}/export/all.json">Backup JSON</a>
+    </div>
+  </div>
+  <form method="get" action="/history" class="filter-bar">
+    <label>Show
+      <select name="record">
+        {% for value, label in [
+          ("all", "Everything"),
+          ("readings", "Readings"),
+          ("additions", "Additions"),
+          ("maintenance", "Maintenance"),
+        ] %}
+        <option value="{{ value }}" {% if record == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>From
+      <input type="date" name="start" value="{{ start or '' }}">
+    </label>
+    <label>To
+      <input type="date" name="end" value="{{ end or '' }}">
+    </label>
+    <button class="button" type="submit">Filter</button>
+    {% if start or end or record != "all" %}
+    <a class="button" href="/history">Clear</a>
+    {% endif %}
+  </form>
+</section>
+
+{% if record in ["all", "readings"] %}
+<section>
+  <div class="section-head">
+    <h2 class="section-title">Readings</h2>
+    <a class="button" href="/readings/new">Add reading</a>
+  </div>
+  {% if readings %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tested</th><th>FC</th><th>CC</th><th>pH</th><th>TA</th><th>CH</th><th>CYA</th><th>Salt</th><th>CSI</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in readings %}
+        <tr>
+          <td data-localtime="{{ row.tested_at_local or '' }}">{{ row.tested_at_local or row.tested_at }}</td>
+          <td>{{ row.fc | num if row.fc is not none else "" }}</td>
+          <td>{{ row.cc | num if row.cc is not none else "" }}</td>
+          <td>{{ row.ph | num if row.ph is not none else "" }}</td>
+          <td>{{ row.ta | num if row.ta is not none else "" }}</td>
+          <td>{{ row.ch | num if row.ch is not none else "" }}</td>
+          <td>{{ row.cya | num if row.cya is not none else "" }}</td>
+          <td>{{ row.salt | num if row.salt is not none else "" }}</td>
+          <td>{{ row.csi | num if row.csi is not none else "" }}</td>
+          <td class="row-actions">
+            <a href="/readings/{{ row.id }}/edit">Edit</a>
+            <form method="post" action="/readings/{{ row.id }}/delete" onsubmit="return confirm('Delete this reading?')">
+              <button type="submit" class="link-button">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <article class="empty">
+    <h1>No readings here</h1>
+    <p>Nothing matches this filter yet.</p>
+  </article>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if record in ["all", "additions"] %}
+<section>
+  <div class="section-head">
+    <h2 class="section-title">Additions</h2>
+    <a class="button" href="/additions/new">Log dose</a>
+  </div>
+  {% if additions %}
+  <ul class="ledger">
+    {% for addition in additions %}
+    <li>
+      {{ addition.amount | num }} {{ addition.unit.replace("_", " ") }} {{ addition.chemical.replace("_", " ") }}
+      <span data-localtime="{{ addition.added_at_local or '' }}">{{ addition.added_at_local or addition.added_at }}</span>
+      <span class="row-actions">
+        <a href="/additions/{{ addition.id }}/edit">Edit</a>
+        <form method="post" action="/additions/{{ addition.id }}/delete" onsubmit="return confirm('Delete this addition?')">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No additions match this filter.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if record in ["all", "maintenance"] %}
+<section>
+  <div class="section-head">
+    <h2 class="section-title">Maintenance</h2>
+    <a class="button" href="/maintenance/new">Log maintenance</a>
+  </div>
+  {% if maintenance %}
+  <ul class="ledger">
+    {% for event in maintenance %}
+    <li>
+      {{ event.event_type.replace("_", " ") }}{% if event.notes %} - {{ event.notes }}{% endif %}
+      <span data-localtime="{{ event.event_at_local or '' }}">{{ event.event_at_local or event.event_at }}</span>
+      <span class="row-actions">
+        <a href="/maintenance/{{ event.id }}/edit">Edit</a>
+        <form method="post" action="/maintenance/{{ event.id }}/delete" onsubmit="return confirm('Delete this maintenance event?')">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No maintenance matches this filter.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

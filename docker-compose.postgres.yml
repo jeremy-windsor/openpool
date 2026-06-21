@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: openpool-postgres
+    environment:
+      POSTGRES_DB: openpool
+      POSTGRES_USER: openpool
+      POSTGRES_PASSWORD: openpool
+    volumes:
+      - openpool-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openpool -d openpool"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  openpool:
+    build: .
+    image: openpool:local
+    container_name: openpool
+    ports:
+      - "127.0.0.1:5280:5280"
+    environment:
+      OPENPOOL_DATABASE_URL: postgresql://openpool:openpool@db:5432/openpool
+      OPENPOOL_TIMEZONE: America/Phoenix
+      TZ: America/Phoenix
+    depends_on:
+      db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  openpool-postgres:

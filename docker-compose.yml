@@ -1,0 +1,18 @@
+services:
+  openpool:
+    build: .
+    image: openpool:local
+    container_name: openpool
+    ports:
+      - "127.0.0.1:5280:5280"
+    volumes:
+      - ./data:/data
+    environment:
+      OPENPOOL_DB: /data/openpool.sqlite
+      OPENPOOL_TIMEZONE: America/Phoenix
+      TZ: UTC
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

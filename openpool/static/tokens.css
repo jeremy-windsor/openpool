@@ -1,0 +1,68 @@
+:root {
+  --brand-50:#ECF8FC;
+  --brand-100:#D2EFF8;
+  --brand-300:#6FC8E6;
+  --brand-500:#1690BE;
+  --brand-600:#0E7CA6;
+  --brand-700:#0B6385;
+  --brand-900:#073A4F;
+  --good-700:#1E7A50;
+  --good-bg:#E4F6EC;
+  --caution-800:#9A5A00;
+  --caution-bg:#FBF0DA;
+  --danger-700:#B5302A;
+  --danger-bg:#FBE7E5;
+  --bg:#F6FAFC;
+  --surface:#FFFFFF;
+  --surface-2:#F0F6F9;
+  --border:#DCE7EC;
+  --text:#0F2935;
+  --text-dim:#5B7682;
+  --radius-card:12px;
+  --radius-input:10px;
+  --radius-sm:8px;
+  --radius-pill:999px;
+  --shadow-card:0 1px 3px rgba(7,58,79,.08), 0 1px 2px rgba(7,58,79,.06);
+  --shadow-raised:0 6px 16px rgba(7,58,79,.20), 0 2px 6px rgba(7,58,79,.14);
+  --shadow-sheet:0 8px 30px rgba(7,58,79,.18);
+  --ease:cubic-bezier(.2,.7,.3,1);
+}
+
+[data-theme="dark"] {
+  --bg:#0A1620;
+  --surface:#0F2230;
+  --surface-2:#16303F;
+  --border:#24414F;
+  --text:#E8F1F5;
+  --text-dim:#9DB4BF;
+  --brand-600:#1690BE;
+  --brand-700:#38ABD4;
+  --good-700:#5FD39B;
+  --caution-800:#F0B25A;
+  --danger-700:#F0817A;
+  --good-bg:#10322A;
+  --caution-bg:#3A2D12;
+  --danger-bg:#3A1E1C;
+}
+
+[data-theme="outdoor"] {
+  --bg:#FFFFFF;
+  --surface:#FFFFFF;
+  --surface-2:#FFFFFF;
+  --border:#6B8593;
+  --text:#00131C;
+  --text-dim:#234653;
+  --brand-600:#073A4F;
+  --brand-700:#062E3E;
+  --good-700:#0F5E3A;
+  --caution-800:#7A4600;
+  --danger-700:#8E211C;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation:none!important;
+    transition:none!important;
+  }
+}
+
