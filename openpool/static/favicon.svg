@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="openpool">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="432" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b2a3a"/>
+      <stop offset="1" stop-color="#061820"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+  <path
+    d="M256 92c42 50 68 88 68 132a68 68 0 0 1-136 0c0-44 26-82 68-132Z"
+    fill="#25c7d9"
+    stroke="#dffbff"
+    stroke-width="16"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M80 304c44 0 44 32 88 32s44-32 88-32 44 32 88 32 44-32 88-32"
+    fill="none"
+    stroke="#33d6e6"
+    stroke-width="36"
+    stroke-linecap="round"
+  />
+  <path
+    d="M112 388c36 0 36 24 72 24s36-24 72-24 36 24 72 24 36-24 72-24"
+    fill="none"
+    stroke="#2f8dff"
+    stroke-width="28"
+    stroke-linecap="round"
+  />
+</svg>

@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import json
+import struct
 from datetime import date, timedelta
+from pathlib import Path
+
+STATIC_DIR = Path(__file__).parents[1] / "openpool" / "static"
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    data = path.read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert data[12:16] == b"IHDR"
+    return struct.unpack(">II", data[16:24])
 
 
 def test_health_ok(client):
@@ -28,6 +40,35 @@ def test_dashboard_renders(client):
     response = client.get("/")
     assert response.status_code == 200
     assert "openpool" in response.text.lower()
+
+
+def test_app_shell_links_icons_and_manifest(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'href="/static/favicon.svg"' in response.text
+    assert 'href="/static/icon-192.png"' in response.text
+    assert 'href="/static/apple-touch-icon.png"' in response.text
+    assert 'href="/static/manifest.webmanifest"' in response.text
+
+    favicon = STATIC_DIR / "favicon.svg"
+    assert favicon.exists()
+    assert "<svg" in favicon.read_text()
+
+    expected_pngs = {
+        "icon-192.png": (192, 192),
+        "icon-512.png": (512, 512),
+        "apple-touch-icon.png": (180, 180),
+    }
+    for filename, size in expected_pngs.items():
+        assert _png_size(STATIC_DIR / filename) == size
+
+    manifest = json.loads((STATIC_DIR / "manifest.webmanifest").read_text())
+    icons = {icon["src"]: icon for icon in manifest["icons"]}
+    assert icons["/static/icon-192.png"]["sizes"] == "192x192"
+    assert icons["/static/icon-192.png"]["type"] == "image/png"
+    assert icons["/static/icon-512.png"]["sizes"] == "512x512"
+    assert icons["/static/icon-512.png"]["type"] == "image/png"
 
 
 def test_dashboard_cautions_for_non_chlorine_out_of_range_readings(client):
