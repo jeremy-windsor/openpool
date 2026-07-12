@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import pounds_to_ounces, ppm_to_pounds, rounded
+from openpool.chemistry.units import (
+    pounds_to_ounces,
+    ppm_to_pounds,
+    require_finite_values,
+    rounded,
+)
 
 # Molar masses (g/mol). CH is measured as ppm CaCO3, so product doses scale by
 # the ratio of product molar mass to CaCO3 molar mass.
@@ -28,6 +33,11 @@ def dose_calcium_chloride_for_ch(
     hardness increaser" is the dihydrate (77-80 percent products).
     """
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_ch=current_ch,
+        target_ch=target_ch,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if product not in PRODUCT_FACTORS:

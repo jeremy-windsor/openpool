@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 import pytest
 
@@ -242,14 +243,141 @@ def test_status_summary_levels(conn):
     pool = db.get_pool(conn, "example")
     assert services.status_summary(pool, None)["level"] == "empty"
 
-    db.create_reading(conn, "example", {"tested_at": "2026-06-01T08:00", "fc": 0.5, "cya": 40})
-    low = db.latest_reading(conn, "example")
-    assert services.status_summary(pool, low)["level"] == "danger"
+    now = datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
 
-    db.create_reading(conn, "example", {"tested_at": "2026-06-02T08:00", "fc": 6, "cya": 40})
+    db.create_reading(
+        conn,
+        "example",
+        {"tested_at": "2026-06-01T10:00", "fc": 0.5, "cya": 40},
+    )
+    low = db.latest_reading(conn, "example")
+    assert services.status_summary(pool, low, now=now)["level"] == "danger"
+
+    db.create_reading(
+        conn,
+        "example",
+        {"tested_at": "2026-06-01T10:30", "fc": 6, "cya": 40},
+    )
     good = db.latest_reading(conn, "example")
-    assert services.status_summary(pool, good)["level"] == "good"
-    assert services.status_summary(pool, good)["text"] == "All readings in range"
+    assert services.status_summary(pool, good, now=now)["level"] == "good"
+    assert services.status_summary(pool, good, now=now)["text"] == "All readings in range"
+
+
+def test_recommendation_requires_fresh_same_day_reading(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 40}
+
+    fresh = services.recommended_actions(
+        pool, reading, now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
+    )
+    stale = services.recommended_actions(
+        pool, reading, now=datetime(2026, 6, 2, 1, 0, tzinfo=UTC)
+    )
+
+    assert fresh[0]["kind"] == "chlorine"
+    assert stale[0]["kind"] == "retest"
+    assert "more than 12 hours old" in stale[0]["why"]
+    assert "dose" not in stale[0]
+
+
+def test_recommendation_requires_current_pool_local_day(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-02T06:00:00Z", "fc": 1, "cya": 40}
+
+    actions = services.recommended_actions(
+        pool,
+        reading,
+        now=datetime(2026, 6, 2, 8, 0, tzinfo=UTC),
+    )
+
+    assert actions[0]["kind"] == "retest"
+    assert "not from today" in actions[0]["why"]
+    assert "dose" not in actions[0]
+
+
+def test_chlorine_addition_after_reading_suppresses_recommendation(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 40}
+    additions = [
+        {
+            "chemical": "liquid_chlorine",
+            "added_at": "2026-06-01T13:00:00Z",
+        }
+    ]
+
+    actions = services.recommended_actions(
+        pool,
+        reading,
+        additions,
+        now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+    )
+
+    assert actions[0]["kind"] == "retest"
+    assert "Chlorine was logged" in actions[0]["why"]
+    assert "dose" not in actions[0]
+
+
+def test_chlorine_addition_at_reading_time_suppresses_recommendation(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 40}
+    additions = [
+        {"chemical": "cal_hypo", "added_at": "2026-06-01T12:00:00Z"}
+    ]
+
+    actions = services.recommended_actions(
+        pool,
+        reading,
+        additions,
+        now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+    )
+
+    assert actions[0]["kind"] == "retest"
+    assert "dose" not in actions[0]
+
+
+def test_chlorine_addition_with_bad_timestamp_fails_closed(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 40}
+    additions = [{"chemical": "dichlor", "added_at": "not-a-time"}]
+
+    actions = services.recommended_actions(
+        pool,
+        reading,
+        additions,
+        now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+    )
+
+    assert actions[0]["kind"] == "retest"
+    assert "no valid timestamp" in actions[0]["why"]
+    assert "dose" not in actions[0]
+
+
+def test_non_chlorine_addition_does_not_suppress_recommendation(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 40}
+    additions = [{"chemical": "salt", "added_at": "2026-06-01T13:00:00Z"}]
+
+    actions = services.recommended_actions(
+        pool,
+        reading,
+        additions,
+        now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC),
+    )
+
+    assert actions[0]["kind"] == "chlorine"
+
+
+def test_above_chart_cya_returns_retest_action_without_dose(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {"tested_at": "2026-06-01T12:00:00Z", "fc": 1, "cya": 200}
+
+    actions = services.recommended_actions(
+        pool, reading, now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
+    )
+
+    assert actions[0]["kind"] == "retest"
+    assert "above the supported" in actions[0]["why"]
+    assert "dose" not in actions[0]
 
 
 def test_status_summary_cautions_for_non_chlorine_out_of_range(conn):

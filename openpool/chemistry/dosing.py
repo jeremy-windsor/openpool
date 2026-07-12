@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,14 @@ class Dose:
     confidence: str = "high"
 
     def to_dict(self) -> dict[str, object]:
+        numeric_outputs = {
+            "amount": self.amount,
+            **{f"secondary.{name}": value for name, value in self.secondary.items()},
+            **{f"effects.{name}": value for name, value in self.effects.items()},
+        }
+        for name, value in numeric_outputs.items():
+            if not isfinite(float(value)):
+                raise ValueError(f"calculated {name} must be a finite number")
         return {
             "chemical": self.chemical,
             "amount": self.amount,

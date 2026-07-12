@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import log
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import ppm_to_pounds, rounded
+from openpool.chemistry.units import ppm_to_pounds, require_finite_values, rounded
 
 # Operational helpers: not chemical doses, but the same Dose container keeps
 # the units/warnings/assumptions contract consistent across the calculator.
@@ -21,10 +21,20 @@ def estimate_drain_for_dilution(
     math, nothing more.
     """
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_ppm=current_ppm,
+        target_ppm=target_ppm,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if current_ppm <= 0:
         raise ValueError("current reading must be greater than zero")
+    if target_ppm <= 0:
+        raise ValueError(
+            "target must be greater than zero; OpenPool does not prescribe a full drain. "
+            "Enter a positive target or consult qualified local guidance for a safe drain plan."
+        )
 
     formula = "replace_fraction = 1 - target / current"
     source_note = "Proportional water replacement."
@@ -81,6 +91,12 @@ def estimate_swg_runtime(
     to ppm per day for a given pool volume.
     """
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        cell_lbs_per_day=cell_lbs_per_day,
+        target_fc_per_day=target_fc_per_day,
+        pump_hours_per_day=pump_hours_per_day,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if cell_lbs_per_day <= 0:

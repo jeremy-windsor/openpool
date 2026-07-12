@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from math import isfinite
+
 GALLON_TO_LITERS = 3.785411784
 FL_OZ_PER_GALLON = 128.0
 OZ_PER_LB = 16.0
@@ -41,15 +43,26 @@ def ppm_to_pounds(ppm_delta: float, pool_gallons: float) -> float:
 
 
 def normalize_percent(percent: float) -> float:
-    """Accept either 10 or 0.10 for a ten-percent product strength."""
+    """Validate percent-only product strength semantics."""
 
-    if percent <= 0:
-        raise ValueError("percent strength must be greater than zero")
-    if percent <= 1:
-        return percent * 100
+    if not isfinite(percent):
+        raise ValueError("percent strength must be a finite number")
+    if 0 < percent < 1:
+        raise ValueError(
+            "enter product strength as a percent, e.g. 10 for a 10% product"
+        )
+    if percent <= 0 or percent > 100:
+        raise ValueError("percent strength must be between 1 and 100")
     return percent
+
+
+def require_finite_values(**values: float | None) -> None:
+    """Reject non-finite chemistry inputs before any calculation."""
+
+    for name, value in values.items():
+        if value is not None and not isfinite(float(value)):
+            raise ValueError(f"{name} must be a finite number")
 
 
 def rounded(value: float, digits: int = 2) -> float:
     return round(value + 0.0, digits)
-

@@ -2,9 +2,15 @@
 
 Self-hosted pool chemistry logbook and calculator.
 
-`openpool` is planned as a small Docker-hosted web app for pool owners who want local history, transparent calculations, and portable exports without depending on a hosted app just to publish their latest chemistry as JSON.
+> **Development status:** logging is usable, but dosing recommendations are
+> not approved for real-pool use until Gate P in the hardening plan passes.
+> Keep the service private; it does not have authentication yet.
 
-## Planned shape
+`openpool` is a small Docker-hosted web app for pool owners who want local
+history, transparent calculations, and portable exports without depending on a
+hosted service just to publish their latest chemistry as JSON.
+
+## Architecture
 
 - FastAPI backend
 - SQLite local database by default, with optional PostgreSQL
@@ -21,10 +27,10 @@ Self-hosted pool chemistry logbook and calculator.
 
 ## Status
 
-Early implementation. The repository now contains the first FastAPI + SQLite
-slice: pool profile storage, manual reading entry, reading history, CSV export,
-share JSON, and initial chlorine/CYA/salt calculations. PostgreSQL can be used
-instead by setting `OPENPOOL_DATABASE_URL`.
+The repository contains a FastAPI application with reading, chemical-addition,
+and maintenance history; CSV/JSON exports; a read-only share view; and pool
+chemistry calculators. SQLite is the supported single-user deployment default.
+PostgreSQL is optional; its parity tests run against a PostgreSQL service in CI.
 
 ## Run locally
 

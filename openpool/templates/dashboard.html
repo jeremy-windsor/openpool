@@ -35,9 +35,11 @@
     <div class="rec-body">
       <h3>{{ action.title }}</h3>
       <p>{{ action.summary }}</p>
-      <div class="rec-actions">
-        <a class="button primary" href="/additions/new?chemical={{ action.dose.chemical }}&amount={{ action.dose.amount }}&unit={{ action.dose.unit }}&reason=dashboard+recommendation">Log this dose</a>
-      </div>
+      {% if action.dose %}
+        <div class="rec-actions">
+          <a class="button primary" href="/additions/new?chemical={{ action.dose.chemical }}&amount={{ action.dose.amount }}&unit={{ action.dose.unit }}&reason=dashboard+recommendation">Log this dose</a>
+        </div>
+      {% endif %}
       <details>
         <summary>Show math</summary>
         <p class="muted">{{ action.why }}</p>

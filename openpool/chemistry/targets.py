@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from openpool.chemistry.units import require_finite_values
+
 
 @dataclass(frozen=True)
 class FcCyaTarget:
@@ -62,14 +64,16 @@ def round_cya_bucket(
         warnings.append("No CYA reading yet; using the lowest supported target bucket.")
         return buckets[0], tuple(warnings)
 
+    require_finite_values(cya=cya)
+
     for bucket in buckets:
         if cya <= bucket:
             return bucket, tuple(warnings)
 
-    warnings.append(
-        "CYA is above the supported chart; using the highest bucket and warning instead."
+    raise ValueError(
+        f"CYA {cya:g} ppm is above the supported {buckets[-1]} ppm chart maximum; "
+        "no FC or SLAM target is calculated. Retest CYA and use dilution guidance."
     )
-    return buckets[-1], tuple(warnings)
 
 
 def fc_cya_targets(cya: float | None, sanitizer: str = "liquid_chlorine") -> FcCyaTarget:

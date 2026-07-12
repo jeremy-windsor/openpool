@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from hmac import compare_digest
+from math import isfinite
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from openpool import __version__, db
 from openpool.chemistry.acid_base import dose_muriatic_acid_for_ph, dose_soda_ash_for_ph
 from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
 from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
-from openpool.chemistry.chlorine import dose_dry_chlorine_for_fc, dose_liquid_chlorine_for_fc
+from openpool.chemistry.chlorine import (
+    CHLORINE_ADDITION_CHEMICALS,
+    dose_dry_chlorine_for_fc,
+    dose_liquid_chlorine_for_fc,
+)
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
 from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
 from openpool.chemistry.salt import dose_salt_for_ppm
@@ -23,6 +30,7 @@ TYPICAL_RANGES: dict[str, tuple[float | None, float | None]] = {
     "ch": (250, 650),
     "csi": (-0.3, 0.3),
 }
+FRESH_READING_MAX_AGE = timedelta(hours=12)
 
 
 def humanize_number(value: Any, grouping: bool = True) -> str:
@@ -79,8 +87,10 @@ def reading_tiles(
     # "target" ranges come from sanitizer-specific recommendations (FC/CYA
     # chart, SWG salt window); everything else is a generic comfort range and
     # is labeled "typical" so the dashboard does not overstate precision.
+    fc_low = targets.target_low if targets else None
+    fc_high = targets.target_high if targets else None
     specs = [
-        ("fc", "FC", "ppm", value("fc"), targets.target_low, targets.target_high, "target"),
+        ("fc", "FC", "ppm", value("fc"), fc_low, fc_high, "target"),
         ("cc", "CC", "ppm", value("cc"), *TYPICAL_RANGES["cc"], "typical"),
         ("ph", "pH", "", value("ph"), *TYPICAL_RANGES["ph"], "typical"),
         ("ta", "TA", "ppm", value("ta"), *TYPICAL_RANGES["ta"], "typical"),
@@ -148,6 +158,17 @@ def _require(values: dict[str, Any], goal: str, *names: str) -> None:
 
 def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> dict[str, Any]:
     pool_gallons = float(values.get("pool_gallons") or pool["volume_gallons"])
+    numeric_values = {"pool_gallons": pool_gallons}
+    numeric_values.update(
+        {
+            name: float(value)
+            for name, value in values.items()
+            if name not in {"goal", "product"} and value is not None
+        }
+    )
+    for name, value in numeric_values.items():
+        if not isfinite(value):
+            raise ValueError(f"{name} must be a finite number")
     extra: dict[str, Any] = {}
 
     if goal == "raise_fc":
@@ -234,6 +255,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             ta=float(values["ta"]),
             cya=values.get("cya"),
             borates=values.get("borates"),
+            acid_percent=float(values.get("strength") or 31.45),
         )
     elif goal == "raise_ph":
         _require(values, goal, "current", "target", "ta")
@@ -278,14 +300,26 @@ def share_access_allowed(pool: dict[str, Any], token: str | None) -> bool:
 def recommended_actions(
     pool: dict[str, Any],
     reading: dict[str, Any] | None,
+    additions: list[dict[str, Any]] | None = None,
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     if not reading or reading.get("fc") is None:
         return []
 
-    targets = fc_cya_targets(reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine")
+    try:
+        targets = fc_cya_targets(
+            reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine"
+        )
+    except ValueError as exc:
+        return [_retest_action(str(exc))]
+
     current_fc = float(reading["fc"])
     if current_fc >= targets.target_low:
         return []
+
+    block_reason = _recommendation_block_reason(pool, reading, additions or [], now)
+    if block_reason:
+        return [_retest_action(block_reason)]
 
     target_fc = targets.target_high
     dose = dose_liquid_chlorine_for_fc(
@@ -313,15 +347,91 @@ def recommended_actions(
     ]
 
 
-def status_summary(pool: dict[str, Any], reading: dict[str, Any] | None) -> dict[str, str]:
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _retest_action(reason: str) -> dict[str, Any]:
+    return {
+        "kind": "retest",
+        "severity": "retest",
+        "title": "Retest before dosing",
+        "summary": "No chemical dose is calculated.",
+        "why": reason,
+    }
+
+
+def _recommendation_block_reason(
+    pool: dict[str, Any],
+    reading: dict[str, Any],
+    additions: list[dict[str, Any]],
+    now: datetime | None,
+) -> str | None:
+    tested_at = _parse_timestamp(reading.get("tested_at"))
+    if tested_at is None:
+        return "The latest reading has no valid timestamp. Retest before calculating a dose."
+
+    current_time = now or datetime.now(UTC)
+    if current_time.tzinfo is None:
+        current_time = current_time.replace(tzinfo=UTC)
+    current_time = current_time.astimezone(UTC)
+    age = current_time - tested_at
+    if age < timedelta(0):
+        return "The latest reading timestamp is in the future. Retest before calculating a dose."
+
+    timezone_name = pool.get("timezone") or "UTC"
+    timezone = ZoneInfo(str(timezone_name))
+    if age > FRESH_READING_MAX_AGE:
+        return "The latest reading is more than 12 hours old. Retest before calculating a dose."
+    if tested_at.astimezone(timezone).date() != current_time.astimezone(timezone).date():
+        return "The latest reading is not from today in the pool timezone. Retest before dosing."
+
+    for addition in additions:
+        if addition.get("chemical") not in CHLORINE_ADDITION_CHEMICALS:
+            continue
+        added_at = _parse_timestamp(addition.get("added_at"))
+        if added_at is None:
+            return (
+                "A chlorine addition has no valid timestamp. "
+                "Retest before calculating another dose."
+            )
+        if added_at >= tested_at:
+            return (
+                "Chlorine was logged after the latest reading. "
+                "Retest before calculating another dose."
+            )
+    return None
+
+
+def status_summary(
+    pool: dict[str, Any],
+    reading: dict[str, Any] | None,
+    additions: list[dict[str, Any]] | None = None,
+    now: datetime | None = None,
+) -> dict[str, str]:
     if not reading:
         return {"level": "empty", "text": "No readings yet"}
 
-    actions = recommended_actions(pool, reading)
+    actions = recommended_actions(pool, reading, additions, now)
+    if any(action["severity"] == "retest" for action in actions):
+        return {"level": "caution", "text": "Retest before dosing"}
     if any(action["severity"] == "danger" for action in actions):
         return {"level": "danger", "text": "Act now - low FC"}
 
-    targets = fc_cya_targets(reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine")
+    try:
+        targets = fc_cya_targets(
+            reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine"
+        )
+    except ValueError:
+        targets = None
     tiles = reading_tiles(reading, targets, pool.get("sanitizer") or "liquid_chlorine")
     outside_count = sum(tile["state"] in {"low", "high"} for tile in tiles)
     if outside_count:
@@ -338,11 +448,22 @@ def build_snapshot(conn: db.Connection, pool_id: str) -> dict[str, Any]:
 
     latest = db.latest_reading(conn, pool_id)
     additions = db.list_additions(conn, pool_id, limit=3)
-    timezone_name = pool.get("timezone") or "UTC"
-    targets = fc_cya_targets(
-        latest.get("cya") if latest else pool.get("default_cya_target"),
-        pool.get("sanitizer") or "liquid_chlorine",
+    recommendation_additions = db.list_additions(
+        conn,
+        pool_id,
+        limit=10_000,
+        start_utc=latest.get("tested_at") if latest else None,
     )
+    timezone_name = pool.get("timezone") or "UTC"
+    target_error = None
+    try:
+        targets = fc_cya_targets(
+            latest.get("cya") if latest else pool.get("default_cya_target"),
+            pool.get("sanitizer") or "liquid_chlorine",
+        )
+    except ValueError as exc:
+        targets = None
+        target_error = str(exc)
 
     overview = _overview(latest, include_notes=bool(pool.get("include_notes_in_share")))
     if overview:
@@ -363,11 +484,11 @@ def build_snapshot(conn: db.Connection, pool_id: str) -> dict[str, Any]:
             "unitSystem": pool["unit_system"],
             "timezone": pool["timezone"],
         },
-        "status": status_summary(pool, latest),
+        "status": status_summary(pool, latest, recommendation_additions),
         "overview": overview,
         "tiles": reading_tiles(latest, targets, pool.get("sanitizer") or "liquid_chlorine"),
-        "targets": targets.to_dict(),
-        "recommendations": recommended_actions(pool, latest),
+        "targets": targets.to_dict() if targets else {"error": target_error},
+        "recommendations": recommended_actions(pool, latest, recommendation_additions),
         "recentAdditions": [
             {
                 "chemical": item["chemical"],

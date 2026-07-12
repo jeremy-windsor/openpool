@@ -66,9 +66,10 @@
       <input name="pool_gallons" inputmode="decimal" value="{{ (pool_gallons or pool.volume_gallons) | num(false) }}">
       <small>gallons</small>
     </label>
-    <label data-goals="raise_fc slam_fc">Product strength percent
-      <input name="strength" inputmode="decimal" value="{{ (strength or pool.default_chlorine_percent) | num(false) }}">
-      <small>liquid chlorine or cal-hypo label strength</small>
+    <label data-goals="raise_fc slam_fc lower_ph">Product strength percent
+      <input name="strength" inputmode="decimal" value="{{ (strength if strength is not none else (31.45 if goal == 'lower_ph' else pool.default_chlorine_percent)) | num(false) }}">
+      <small data-goals="raise_fc slam_fc">liquid chlorine or cal-hypo label strength</small>
+      <small data-goals="lower_ph">muriatic acid label strength; supported: 14.5 or 31.45</small>
     </label>
     <button class="button primary" type="submit">Calculate</button>
   </form>

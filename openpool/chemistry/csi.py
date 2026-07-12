@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import log10
 
+from openpool.chemistry.units import require_finite_values
+
 # CSI here is the Langelier-style saturation index with pool-specific
 # corrections: carbonate alkalinity is total alkalinity minus the cyanurate
 # and borate contributions. The result is approximate by design; it is a
@@ -39,6 +41,16 @@ def calculate_csi(
     missing = [name for name, value in (("pH", ph), ("TA", ta), ("CH", ch)) if value is None]
     if missing:
         return CsiResult(None, [f"CSI needs pH, TA, and CH; missing {', '.join(missing)}."])
+
+    require_finite_values(
+        ph=ph,
+        ta=ta,
+        ch=ch,
+        cya=cya,
+        water_temp_f=water_temp_f,
+        salt=salt,
+        borates=borates,
+    )
 
     warnings: list[str] = []
 

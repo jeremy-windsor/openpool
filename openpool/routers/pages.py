@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from math import isfinite
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -341,9 +342,12 @@ def _parse_optional_float(name: str, raw: str | None) -> tuple[float | None, str
     if raw is None or raw.strip() == "":
         return None, None
     try:
-        return float(raw), None
+        value = float(raw)
     except ValueError:
         return None, f"{name.replace('_', ' ')} must be a number"
+    if not isfinite(value):
+        return None, f"{name.replace('_', ' ')} must be a finite number"
+    return value, None
 
 
 @router.get("/history")

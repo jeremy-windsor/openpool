@@ -513,6 +513,15 @@ def test_calculate_slam_uses_cya_shock_target(client):
     assert any("SLAM is a process" in warning for warning in body["dose"]["warnings"])
 
 
+def test_calculate_slam_rejects_cya_above_supported_chart(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "slam_fc", "current": 4, "cya": 200},
+    )
+    assert response.status_code == 400
+    assert "no FC or SLAM target is calculated" in response.json()["detail"]
+
+
 def test_calculate_lower_ph_returns_acid_and_ta_effect(client):
     response = client.post(
         "/api/pools/example/calculate",
@@ -531,6 +540,31 @@ def test_calculate_lower_ph_returns_acid_and_ta_effect(client):
     assert dose["confidence"] == "medium"
     assert abs(dose["amount"] - 10.1) < 1.0
     assert dose["effects"]["ta"] < 0
+
+
+def test_calculate_lower_ph_honors_acid_strength(client):
+    strong = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 31.45},
+    )
+    weak = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 14.5},
+    )
+
+    assert strong.status_code == 200
+    assert weak.status_code == 200
+    assert weak.json()["dose"]["amount"] > strong.json()["dose"]["amount"]
+    assert any("14.5 percent" in item for item in weak.json()["dose"]["assumptions"])
+
+
+def test_calculate_lower_ph_rejects_unsupported_acid_strength(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 20},
+    )
+    assert response.status_code == 400
+    assert "supported muriatic acid strengths" in response.json()["detail"]
 
 
 def test_calculate_lower_ph_missing_ta_is_400(client):
@@ -577,6 +611,15 @@ def test_calculate_dilution(client):
     assert dose["chemical"] == "water_replacement"
     assert dose["amount"] == 10000
     assert dose["secondary"]["percent_of_pool"] == 50
+
+
+def test_calculate_dilution_target_zero_is_400(client):
+    response = client.post(
+        "/api/pools/example/calculate",
+        json={"goal": "lower_by_dilution", "current": 100, "target": 0},
+    )
+    assert response.status_code == 400
+    assert "does not prescribe a full drain" in response.json()["detail"]
 
 
 def test_calculate_swg_runtime(client):
@@ -634,6 +677,40 @@ def test_calculator_page_shows_inline_error_for_invalid_numeric_query(client):
 
     assert response.status_code == 200
     assert "current must be a number" in response.text
+
+
+def test_calculator_page_rejects_non_finite_query_values(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "raise_fc", "current": "nan", "target": "12"},
+    )
+    assert response.status_code == 200
+    assert "current must be a finite number" in response.text
+    assert "dose-card" not in response.text
+
+
+def test_calculator_page_lower_ph_shows_acid_strength(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 14.5},
+    )
+    assert response.status_code == 200
+    assert "muriatic acid label strength" in response.text
+    assert "14.5 percent HCl" in response.text
+
+
+def test_dashboard_renders_retest_action_without_dose_link(client):
+    client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2020-01-01T12:00:00Z", "fc": 1, "cya": 40},
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Retest before dosing" in response.text
+    assert "No chemical dose is calculated" in response.text
+    assert "Log this dose" not in response.text
 
 
 def test_calculator_page_shows_inline_error_instead_of_400(client):

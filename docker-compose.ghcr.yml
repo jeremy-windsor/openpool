@@ -1,6 +1,6 @@
 services:
   openpool:
-    image: ghcr.io/jeremy-windsor/openpool:latest
+    image: ${OPENPOOL_IMAGE:-ghcr.io/jeremy-windsor/openpool:latest}
     container_name: openpool
     ports:
       - "127.0.0.1:5280:5280"

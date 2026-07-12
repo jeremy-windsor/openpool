@@ -6,6 +6,7 @@ from openpool.chemistry.units import (
     normalize_percent,
     pounds_to_ounces,
     ppm_to_pounds,
+    require_finite_values,
     rounded,
 )
 
@@ -27,6 +28,9 @@ DRY_CHLORINE_PRODUCTS = {
     "cal_hypo": None,  # label strength varies; default below
 }
 CAL_HYPO_DEFAULT_PERCENT = 65.0
+CHLORINE_ADDITION_CHEMICALS = frozenset(
+    {"liquid_chlorine", "trichlor", "dichlor", "cal_hypo"}
+)
 
 # ppm of side effect per ppm of FC added, from molar ratios.
 TRICHLOR_CYA_PER_FC = CYA_MOLAR_MASS / (3 * CL2_MOLAR_MASS)
@@ -50,6 +54,13 @@ def dose_liquid_chlorine_for_fc(
     10,000 gallons.
     """
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_fc=current_fc,
+        target_fc=target_fc,
+        chlorine_percent=chlorine_percent,
+        jug_size_fl_oz=jug_size_fl_oz,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
 
@@ -109,6 +120,12 @@ def dose_dry_chlorine_for_fc(
     side effects are returned so the calculator can show them.
     """
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_fc=current_fc,
+        target_fc=target_fc,
+        available_chlorine_percent=available_chlorine_percent,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if product not in DRY_CHLORINE_PRODUCTS:

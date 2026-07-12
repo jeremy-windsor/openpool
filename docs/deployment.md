@@ -1,6 +1,12 @@
 # Deployment
 
-`openpool` is designed for LAN-first Docker deployment.
+`openpool` is designed for local-first Docker deployment.
+
+> **Current release posture:** use OpenPool as a development logbook only.
+> Do not follow its dosing recommendations on a real pool until Gate P in
+> `plans/hardening-and-pilot-readiness-plan.md` passes. Until authentication
+> exists, recommendation-following access is limited to loopback, an SSH
+> tunnel, or a private VPN.
 
 ```bash
 docker compose up --build
@@ -23,7 +29,7 @@ Images are published to GitHub Container Registry from GitHub Actions:
 
 ```text
 ghcr.io/jeremy-windsor/openpool:latest
-ghcr.io/jeremy-windsor/openpool:<short-git-sha>
+ghcr.io/jeremy-windsor/openpool:sha-<short-git-sha>
 ghcr.io/jeremy-windsor/openpool:<version>
 ```
 
@@ -33,6 +39,14 @@ Use the published-image compose file:
 docker compose -f docker-compose.ghcr.yml pull
 docker compose -f docker-compose.ghcr.yml up -d
 docker compose -f docker-compose.ghcr.yml logs -f openpool
+```
+
+`latest` is for development only. A recommendation-following pilot must pin
+the reviewed commit instead of accepting unattended updates:
+
+```bash
+OPENPOOL_IMAGE=ghcr.io/jeremy-windsor/openpool:sha-<short-git-sha> \
+  docker compose -f docker-compose.ghcr.yml up -d
 ```
 
 Health check:
@@ -123,36 +137,44 @@ header and pass standard forwarded headers such as `X-Forwarded-For`,
 request origin information to the effective host, so proxy header rewriting can
 break legitimate form/API writes or weaken those checks.
 
-Acceptable early exposure is localhost, SSH tunnel, private VPN, or a trusted
-LAN/VLAN where every client is allowed to read and write pool data. Anything
-else needs auth first. No exceptions; future-you is tired of cleaning up
-avoidable nonsense.
+Logging-only development use may run on a trusted LAN/VLAN only when every
+client is allowed to read and write pool data and the operator accepts that
+risk. Recommendation-following use requires loopback, an SSH tunnel, or a
+private VPN until authentication exists. Public or semi-public exposure is
+blocked until Gate X.
 
-## Pilot Checklist
+## Development And Pilot Checklist
 
-Run this list before and during a few weeks of real-pool use.
+The recommendation-following pilot is suspended until Gate P passes. Logging
+may continue, but calculate real doses from the product label and an independent
+reference, then log what was actually added.
 
-Before the pilot:
+For logging-only development:
 
 - [ ] Pull the latest image and confirm `/api/version` matches the expected
       commit.
 - [ ] Set pool volume, sanitizer type, timezone, and chlorine strength in
       Settings.
-- [ ] Confirm the SQLite `/data` volume or Postgres named volume is on storage
-      that survives container recreation.
-- [ ] Take a `all.json` backup and confirm it downloads and parses.
-- [ ] Confirm the app is reachable only via localhost, VPN, or trusted LAN.
+- [ ] Confirm the SQLite `/data` volume survives container recreation.
+- [ ] Keep recommendations development-only; dose from an independent source.
+- [ ] If LAN-bound, record that every reachable client can currently write.
 
-During the pilot, daily or per-test:
+Before recommendation-following pilot use:
 
-- [ ] Log readings from the test kit; confirm CSI appears when pH/TA/CH are
-      present.
-- [ ] Use the calculator for every dose and log it with "Log this dose".
-- [ ] Log maintenance events (backwash, cleaning, refills) as they happen.
+- [ ] Gate P is recorded complete in `plans/project-tracker.md`.
+- [ ] Pin an immutable `sha-<short-git-sha>` image; disable unattended updates.
+- [ ] Confirm `/api/version.buildSha` matches the pinned commit.
+- [ ] Bind to `127.0.0.1` and use loopback, SSH tunnel, or private VPN access.
+- [ ] Take a native SQLite backup, restore it to scratch storage, and verify the
+      app can read the restored database. `all.json` is an export, not a backup.
+- [ ] Recheck pool settings and establish a trusted latest reading after
+      removing any prior LAN-wide write exposure.
 
-Weekly:
+During the pilot:
 
-- [ ] Download `all.json` as a backup.
+- [ ] Log every reading, dose actually applied, and maintenance event.
+- [ ] Retest after dosing; never repeat a recommendation from an old reading.
+- [ ] Repeat the native backup and restore drill on schedule.
 - [ ] Skim history for entry mistakes; fix them with Edit instead of
       re-entering.
 - [ ] Note anything annoying or missing in `plans/project-tracker.md` under

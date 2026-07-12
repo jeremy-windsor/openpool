@@ -16,7 +16,7 @@ class PoolIn(BaseModel):
     sanitizer: str = "liquid_chlorine"
     unit_system: Literal["us", "metric"] = "us"
     timezone: str = "UTC"
-    default_chlorine_percent: float = Field(10.0, gt=0)
+    default_chlorine_percent: float = Field(10.0, ge=1, le=100)
     default_cya_target: float = Field(40.0, ge=0)
     default_salt_target: float = Field(3200.0, ge=0)
     jug_size_fl_oz: float = Field(128.0, gt=0)
@@ -37,7 +37,7 @@ class PoolUpdate(BaseModel):
     sanitizer: str | None = None
     unit_system: Literal["us", "metric"] | None = None
     timezone: str | None = None
-    default_chlorine_percent: float | None = Field(None, gt=0)
+    default_chlorine_percent: float | None = Field(None, ge=1, le=100)
     default_cya_target: float | None = Field(None, ge=0)
     default_salt_target: float | None = Field(None, ge=0)
     jug_size_fl_oz: float | None = Field(None, gt=0)
@@ -73,7 +73,7 @@ class AdditionIn(BaseModel):
 
     added_at: str | None = None
     chemical: str
-    strength_percent: float | None = Field(None, gt=0)
+    strength_percent: float | None = Field(None, ge=1, le=100)
     amount: float = Field(..., gt=0)
     unit: str
     reason: str | None = None
@@ -86,7 +86,7 @@ class AdditionUpdate(BaseModel):
 
     added_at: str | None = None
     chemical: str | None = None
-    strength_percent: float | None = Field(None, gt=0)
+    strength_percent: float | None = Field(None, ge=1, le=100)
     amount: float | None = Field(None, gt=0)
     unit: str | None = None
     reason: str | None = None
@@ -128,7 +128,7 @@ class CalculationIn(BaseModel):
     current: float | None = Field(None, ge=0)
     target: float | None = Field(None, ge=0)
     pool_gallons: float | None = Field(None, gt=0)
-    strength: float | None = Field(None, gt=0)
+    strength: float | None = Field(None, ge=1, le=100)
     product: str | None = None
     ta: float | None = Field(None, ge=0)
     cya: float | None = Field(None, ge=0)

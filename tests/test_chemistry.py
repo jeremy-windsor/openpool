@@ -99,10 +99,9 @@ def test_cya_bucket_rounds_up_conservatively():
     assert targets.cya == 40
 
 
-def test_cya_above_chart_warns():
-    targets = fc_cya_targets(200, sanitizer="liquid_chlorine")
-    assert targets.cya == 100
-    assert targets.warnings
+def test_cya_above_chart_refuses_numeric_target():
+    with pytest.raises(ValueError, match="no FC or SLAM target is calculated"):
+        fc_cya_targets(200, sanitizer="liquid_chlorine")
 
 
 def test_missing_cya_uses_lowest_bucket_and_warns():
@@ -116,9 +115,50 @@ def test_zero_volume_rejected():
         dose_liquid_chlorine_for_fc(pool_gallons=0, current_fc=1, target_fc=5)
 
 
-def test_normalize_percent_accepts_fraction_or_whole():
-    assert normalize_percent(0.10) == pytest.approx(10.0)
+@pytest.mark.parametrize(
+    ("call", "name"),
+    [
+        (
+            lambda: dose_liquid_chlorine_for_fc(
+                pool_gallons=10_000,
+                current_fc=float("nan"),
+                target_fc=5,
+            ),
+            "current_fc",
+        ),
+        (
+            lambda: estimate_drain_for_dilution(
+                pool_gallons=20_000,
+                current_ppm=100,
+                target_ppm=float("inf"),
+            ),
+            "target_ppm",
+        ),
+        (
+            lambda: dose_muriatic_acid_for_ph(
+                pool_gallons=10_000,
+                current_ph=7.8,
+                target_ph=7.5,
+                ta=float("nan"),
+            ),
+            "ta",
+        ),
+    ],
+)
+def test_public_chemistry_entrypoints_reject_non_finite_inputs(call, name):
+    with pytest.raises(ValueError, match=rf"{name} must be a finite number"):
+        call()
+
+
+def test_normalize_percent_uses_percent_only_semantics():
+    assert normalize_percent(1) == pytest.approx(1.0)
     assert normalize_percent(10) == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize("strength", [0.10, 0, -1, 101, float("nan"), float("inf")])
+def test_normalize_percent_rejects_ambiguous_or_impossible_values(strength):
+    with pytest.raises(ValueError):
+        normalize_percent(strength)
 
 
 def test_ppm_to_pounds_identity():
@@ -310,6 +350,11 @@ def test_dilution_zero_when_target_not_below_current():
     dose = estimate_drain_for_dilution(20000, 50, 60)
     assert dose.amount == 0.0
     assert dose.warnings
+
+
+def test_dilution_target_zero_is_refused():
+    with pytest.raises(ValueError, match="does not prescribe a full drain"):
+        estimate_drain_for_dilution(20000, 50, 0)
 
 
 def test_swg_runtime_reference_cases(reference_examples):

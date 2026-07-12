@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import ppm_to_pounds, rounded
+from openpool.chemistry.units import ppm_to_pounds, require_finite_values, rounded
 
 
 def dose_salt_for_ppm(
@@ -10,6 +10,12 @@ def dose_salt_for_ppm(
     target_salt: float,
     bag_size_lbs: float | None = 40.0,
 ) -> Dose:
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_salt=current_salt,
+        target_salt=target_salt,
+        bag_size_lbs=bag_size_lbs,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
 

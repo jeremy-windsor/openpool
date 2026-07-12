@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import pounds_to_ounces, ppm_to_pounds, rounded
+from openpool.chemistry.units import (
+    pounds_to_ounces,
+    ppm_to_pounds,
+    require_finite_values,
+    rounded,
+)
 
 
 def dose_dry_stabilizer_for_cya(
@@ -12,6 +17,12 @@ def dose_dry_stabilizer_for_cya(
 ) -> Dose:
     """Calculate dry cyanuric acid dose by ppm mass math."""
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_cya=current_cya,
+        target_cya=target_cya,
+        product_purity=product_purity,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if not 0 < product_purity <= 1:

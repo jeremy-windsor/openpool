@@ -13,11 +13,13 @@ history in this file.
 
 - Repo: `openpool`
 - Product: local-first Docker-hosted pool chemistry logbook and calculator.
-- Current commit at tracker creation: `c4aa4538296c`
+- Hardening baseline: `81c2c8b15306dfc525c91a282ace03ff1a3f85ea`
 - Primary image: `ghcr.io/jeremy-windsor/openpool:latest`
-- Deployment posture: localhost, SSH tunnel, VPN, or trusted LAN only.
-- Current phase: Phase 3 complete; next is a real-pool pilot (checklist in
-  `docs/deployment.md`).
+- Deployment posture: logging-only development may use an explicitly trusted
+  LAN; recommendation-following remains loopback, SSH tunnel, or private VPN
+  only until authentication exists.
+- Current milestone: Gate P hardening. Recommendation-following pilot is
+  blocked until the gate review and native restore drill pass.
 
 ## Standing Decisions
 
@@ -37,8 +39,9 @@ history in this file.
 
 ## Read
 
-- `AGENTS.md` - repo operating instructions.
 - `README.md` - current run/test/deploy summary.
+- `plans/hardening-and-pilot-readiness-plan.md` - active safety gates and
+  implementation sequence.
 - `plans/openpool-plan.md` - product and architecture plan.
 - `plans/math-plan.md` - chemistry formula plan.
 - `plans/ui-design-plan.md` - UI and mobile design plan.
@@ -190,6 +193,16 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
 
 ## Tested
 
+- Safe-dosing P-min regression coverage includes percent-only strength,
+  fresh-reading/same-day policy, chlorine-addition suppression, dilution-zero
+  refusal, acid strength, above-chart CYA refusal, and finite input/output
+  guards.
+- Repository Compose regression tests require loopback port publication and an
+  immutable GHCR image override.
+- Docker installs the application from `uv.lock`; the locally built locked
+  image passed `/api/health` and `/api/version` smoke tests.
+- CI uses locked dependencies, read-only default permissions, a publish-only
+  package token, SHA-pinned actions, and PostgreSQL parity coverage.
 - Local route/form tests passed in the committed test suite.
 - GitHub Actions Docker workflow passed for commit `c4aa4538296c`.
 - GHCR image publishes only after the test job passes.
@@ -203,14 +216,11 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
 
 ## Current Requirements
 
-Phase 3 focuses on required pool-care features:
-
-- Finish pool math and chemistry helpers.
-- Add useful dosing outputs.
-- Let calculator doses be logged as chemical additions.
-- Complete add/edit/delete/history storage for readings, additions, and
-  maintenance events.
-- Keep exports useful enough for backup and inspection.
+Gate P requirements are defined in
+`plans/hardening-and-pilot-readiness-plan.md`. The P-min dosing and locked-build
+slice is implemented; remaining work includes schema migrations, server-owned
+derived values, CSI provenance, cross-pool link enforcement, validation bounds,
+form error preservation, offline safety behavior, and native backup/restore.
 
 ## Moved Later
 
@@ -237,18 +247,18 @@ Phase 3 focuses on required pool-care features:
 
 - Share tokens are plaintext in SQLite until auth/secrets handling exists.
 - Write APIs are open to any trusted-LAN client that can reach the app.
+- The live deployment must be rebound from all interfaces and pinned to an
+  immutable image before recommendation-following pilot use.
 - Metric support is stored as a preference but not implemented through inputs,
   results, exports, or charts.
 
 ## Next Phase
 
-Phase 3 (`plans/phase-3-chemistry-logbook-core.md`) is complete: all seven
-slices (3A-3F) are built and tested. Next steps, in order:
-
-1. Run the pilot using the checklist in `docs/deployment.md`.
-2. Charts/trends on top of the now-complete history.
-3. Items under Moved Later as they earn their way in (auth before any wider
-   exposure, import/restore, metric UI).
+Phase 3 (`plans/phase-3-chemistry-logbook-core.md`) is complete. Continue Gate P
+in the hardening plan, then run and record the Gate P review and native restore
+drill. Do not start charts, integrations, or recommendation-following pilot use
+before that review passes. Authentication remains mandatory before LAN-wide
+recommendation use or broader exposure.
 
 ## How To Update This Tracker
 

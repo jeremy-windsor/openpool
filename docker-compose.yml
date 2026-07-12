@@ -10,7 +10,7 @@ services:
     environment:
       OPENPOOL_DB: /data/openpool.sqlite
       OPENPOOL_TIMEZONE: America/Phoenix
-      TZ: UTC
+      TZ: America/Phoenix
     security_opt:
       - no-new-privileges:true
     cap_drop:

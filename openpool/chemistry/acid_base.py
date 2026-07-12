@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import pounds_to_ounces, ppm_to_pounds, rounded
+from openpool.chemistry.units import (
+    pounds_to_ounces,
+    ppm_to_pounds,
+    require_finite_values,
+    rounded,
+)
 
 # pH dosing is buffer math, not simple ppm mass math. The model here treats
 # pool water as a closed carbonate system plus the cyanurate and borate
@@ -60,6 +65,13 @@ def acid_demand_ppm(
     same pH interval and are added on top.
     """
 
+    require_finite_values(
+        ph_now=ph_now,
+        ph_target=ph_target,
+        ta=ta,
+        cya=cya,
+        borates=borates,
+    )
     carbonate_alk = float(ta) - _buffer_alkalinity(ph_now, cya, borates)
     if carbonate_alk <= 0:
         raise ValueError("corrected carbonate alkalinity must be positive")
@@ -87,6 +99,13 @@ def base_demand_ppm(
     cyanurate and borate buffers absorb part of the base over the interval.
     """
 
+    require_finite_values(
+        ph_now=ph_now,
+        ph_target=ph_target,
+        ta=ta,
+        cya=cya,
+        borates=borates,
+    )
     carbonate_alk = float(ta) - _buffer_alkalinity(ph_now, cya, borates)
     if carbonate_alk <= 0:
         raise ValueError("corrected carbonate alkalinity must be positive")
@@ -119,6 +138,15 @@ def dose_muriatic_acid_for_ph(
 ) -> Dose:
     """Approximate muriatic acid dose to lower pH, with the expected TA drop."""
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_ph=current_ph,
+        target_ph=target_ph,
+        ta=ta,
+        cya=cya,
+        borates=borates,
+        acid_percent=acid_percent,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if ta <= 0:
@@ -183,6 +211,14 @@ def dose_soda_ash_for_ph(
 ) -> Dose:
     """Approximate soda ash dose to raise pH, with the expected TA rise."""
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_ph=current_ph,
+        target_ph=target_ph,
+        ta=ta,
+        cya=cya,
+        borates=borates,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
     if ta <= 0:

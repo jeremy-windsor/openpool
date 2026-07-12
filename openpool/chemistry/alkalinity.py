@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from openpool.chemistry.dosing import Dose
-from openpool.chemistry.units import pounds_to_ounces, ppm_to_pounds, rounded
+from openpool.chemistry.units import (
+    pounds_to_ounces,
+    ppm_to_pounds,
+    require_finite_values,
+    rounded,
+)
 
 # TA is expressed as ppm CaCO3 (molar mass 100.09, 2 equivalents per mole).
 # Sodium bicarbonate (84.006 g/mol) provides 1 equivalent per mole, so the
@@ -18,6 +23,11 @@ def dose_baking_soda_for_ta(
 ) -> Dose:
     """Calculate a total alkalinity raise dose using sodium bicarbonate."""
 
+    require_finite_values(
+        pool_gallons=pool_gallons,
+        current_ta=current_ta,
+        target_ta=target_ta,
+    )
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
 
