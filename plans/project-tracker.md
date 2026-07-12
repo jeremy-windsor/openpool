@@ -203,6 +203,10 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
   image passed `/api/health` and `/api/version` smoke tests.
 - CI uses locked dependencies, read-only default permissions, a publish-only
   package token, SHA-pinned actions, and PostgreSQL parity coverage.
+- Native restore drill completed 2026-07-12 with pinned image `4789feb`: live
+  and restored SQLite integrity both `ok`; row counts matched at 1 pool, 5
+  readings, 4 additions, and 1 maintenance event. The scratch run confirmed
+  restores must use the production runtime UID/GID for the `0600` database.
 - Local route/form tests passed in the committed test suite.
 - GitHub Actions Docker workflow passed for commit `c4aa4538296c`.
 - GHCR image publishes only after the test job passes.

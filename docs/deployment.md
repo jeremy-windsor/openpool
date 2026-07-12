@@ -79,7 +79,8 @@ Restore drills use scratch storage; never overwrite the live database in place:
 1. Stop a scratch OpenPool container, not the live service.
 2. Copy the backup to a scratch `/data/openpool.sqlite` path.
 3. Start the pinned OpenPool image against that scratch directory on a spare
-   loopback port.
+   loopback port, using the same runtime UID/GID as production so the restored
+   `0600` database is readable.
 4. Verify `/api/health`, the dashboard, and row counts for pools, readings,
    additions, and maintenance.
 5. Record the tested image revision, backup filename, integrity result, and row
