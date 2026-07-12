@@ -9,7 +9,7 @@ Scope: first implementation slice after the planning phase.
 - FastAPI app skeleton with server-rendered pages.
 - SQLite profile, reading, chemical addition, and maintenance tables.
 - Manual reading entry, history, additions entry, calculator, settings, and share page.
-- API endpoints for health, pools, readings, additions, calculator, share JSON, CSV export, and JSON backup.
+- API endpoints for health, pools, readings, additions, calculator, share JSON, CSV export, and portable JSON export.
 - Initial chemistry helpers for liquid chlorine, dry stabilizer/CYA, salt, and FC/CYA targets.
 - Dockerfile and compose file.
 
@@ -55,4 +55,3 @@ Known gaps:
 - Metric support is not implemented beyond the stored preference.
 - Maintenance event UI/API/export and settings-history logging are still future work.
 - Authentication is the next hardening step before any non-local exposure.
-

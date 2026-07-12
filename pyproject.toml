@@ -27,6 +27,7 @@ postgres = [
 
 [project.scripts]
 openpool = "openpool.main:run"
+openpool-backup = "openpool.backup:main"
 openpool-migrate = "openpool.migrate:main"
 
 [tool.setuptools.packages.find]

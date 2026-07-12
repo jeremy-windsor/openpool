@@ -105,6 +105,9 @@ GET /share/{pool_id}
 GET /share/{pool_id}.json
 ```
 
+`all.json` is a portable inspection/interchange export. It is not a native
+database backup and cannot currently be restored through OpenPool.
+
 Share endpoints are disabled until `share_enabled` is true and a read token is
 configured. Share JSON excludes private notes unless `include_notes_in_share` is
 enabled on the pool profile. Pool API responses do not echo share tokens.

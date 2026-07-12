@@ -56,6 +56,38 @@ curl http://127.0.0.1:5280/api/health
 curl http://127.0.0.1:5280/api/version
 ```
 
+## SQLite Backup And Restore Drill
+
+Create a WAL-safe, integrity-checked native backup while OpenPool is running:
+
+```bash
+docker exec openpool openpool-backup \
+  --source /data/openpool.sqlite \
+  --output /data/backups/openpool-$(date -u +%Y%m%dT%H%M%SZ).sqlite
+```
+
+The command refuses to overwrite an existing backup. Copy the resulting file
+off the live service path. Operators with the SQLite CLI may use its equivalent
+online-backup command:
+
+```bash
+sqlite3 /data/openpool.sqlite ".backup /safe/path/openpool.sqlite"
+```
+
+Restore drills use scratch storage; never overwrite the live database in place:
+
+1. Stop a scratch OpenPool container, not the live service.
+2. Copy the backup to a scratch `/data/openpool.sqlite` path.
+3. Start the pinned OpenPool image against that scratch directory on a spare
+   loopback port.
+4. Verify `/api/health`, the dashboard, and row counts for pools, readings,
+   additions, and maintenance.
+5. Record the tested image revision, backup filename, integrity result, and row
+   counts in the project tracker.
+
+`all.json` remains a portable export for inspection/interchange. It is not the
+disaster-recovery mechanism because OpenPool has no round-trip JSON restore.
+
 ## PostgreSQL Backend
 
 PostgreSQL is optional. Set `OPENPOOL_DATABASE_URL` to use it:
