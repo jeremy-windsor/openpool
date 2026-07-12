@@ -31,26 +31,7 @@ def export_readings(pool_id: str, conn: db.Connection = Depends(get_db)) -> Resp
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    fieldnames = [
-        "id",
-        "pool_id",
-        "tested_at",
-        "fc",
-        "cc",
-        "tc",
-        "ph",
-        "ta",
-        "ch",
-        "cya",
-        "salt",
-        "borates",
-        "water_temp_f",
-        "filter_pressure",
-        "csi",
-        "source",
-        "notes",
-        "created_at",
-    ]
+    fieldnames = list(db.TABLE_COLUMNS["test_readings"])
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
@@ -71,19 +52,7 @@ def export_additions(pool_id: str, conn: db.Connection = Depends(get_db)) -> Res
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    fieldnames = [
-        "id",
-        "pool_id",
-        "added_at",
-        "chemical",
-        "strength_percent",
-        "amount",
-        "unit",
-        "reason",
-        "linked_reading_id",
-        "notes",
-        "created_at",
-    ]
+    fieldnames = list(db.TABLE_COLUMNS["chemical_additions"])
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
@@ -104,14 +73,7 @@ def export_maintenance(pool_id: str, conn: db.Connection = Depends(get_db)) -> R
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    fieldnames = [
-        "id",
-        "pool_id",
-        "event_at",
-        "event_type",
-        "notes",
-        "created_at",
-    ]
+    fieldnames = list(db.TABLE_COLUMNS["maintenance_events"])
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()

@@ -38,9 +38,16 @@ PUT    /api/pools/{pool_id}/readings/{reading_id}
 DELETE /api/pools/{pool_id}/readings/{reading_id}
 ```
 
-`PUT` is a partial update: only the fields sent are changed. CSI is computed
-automatically on create and recomputed on every edit when pH, TA, and CH are
-present (see `docs/formulas.md`).
+`PUT` is a partial update: only the fields sent are changed. `tc` and `csi` are
+server-owned derived fields; clients that send either receive `422`. The server
+always recomputes them on create and edit. Each reading also carries
+`csi_meta_json`/`csi_meta`, which records formula version, inputs, defaults, and
+warnings so an approximate CSI is not presented as a lab measurement (see
+`docs/formulas.md`).
+
+Reading, pool, and addition numbers have hard physical bounds. Values outside
+those bounds receive `422` at the API boundary. A linked addition must reference
+a reading from the same pool.
 
 ## Additions
 
@@ -107,6 +114,8 @@ GET /share/{pool_id}.json
 
 `all.json` is a portable inspection/interchange export. It is not a native
 database backup and cannot currently be restored through OpenPool.
+
+The readings CSV and portable JSON include stored CSI provenance.
 
 Share endpoints are disabled until `share_enabled` is true and a read token is
 configured. Share JSON excludes private notes unless `include_notes_in_share` is

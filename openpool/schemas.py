@@ -10,15 +10,15 @@ class PoolIn(BaseModel):
 
     id: str | None = None
     name: str = "Home Pool"
-    volume_gallons: float = Field(20_000, gt=0)
-    spa_volume_gallons: float | None = Field(None, gt=0)
+    volume_gallons: float = Field(20_000, gt=0, le=1_000_000)
+    spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
     surface: str = "plaster"
     sanitizer: str = "liquid_chlorine"
     unit_system: Literal["us", "metric"] = "us"
     timezone: str = "UTC"
     default_chlorine_percent: float = Field(10.0, ge=1, le=100)
-    default_cya_target: float = Field(40.0, ge=0)
-    default_salt_target: float = Field(3200.0, ge=0)
+    default_cya_target: float = Field(40.0, ge=0, le=500)
+    default_salt_target: float = Field(3200.0, ge=0, le=50_000)
     jug_size_fl_oz: float = Field(128.0, gt=0)
     bag_size_lbs: float = Field(40.0, gt=0)
     share_enabled: bool = False
@@ -31,15 +31,15 @@ class PoolUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = None
-    volume_gallons: float | None = Field(None, gt=0)
-    spa_volume_gallons: float | None = Field(None, gt=0)
+    volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
+    spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
     surface: str | None = None
     sanitizer: str | None = None
     unit_system: Literal["us", "metric"] | None = None
     timezone: str | None = None
     default_chlorine_percent: float | None = Field(None, ge=1, le=100)
-    default_cya_target: float | None = Field(None, ge=0)
-    default_salt_target: float | None = Field(None, ge=0)
+    default_cya_target: float | None = Field(None, ge=0, le=500)
+    default_salt_target: float | None = Field(None, ge=0, le=50_000)
     jug_size_fl_oz: float | None = Field(None, gt=0)
     bag_size_lbs: float | None = Field(None, gt=0)
     share_enabled: bool | None = None
@@ -52,18 +52,16 @@ class ReadingIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tested_at: str | None = None
-    fc: float | None = Field(None, ge=0)
-    cc: float | None = Field(None, ge=0)
-    tc: float | None = Field(None, ge=0)
+    fc: float | None = Field(None, ge=0, le=100)
+    cc: float | None = Field(None, ge=0, le=100)
     ph: float | None = Field(None, ge=0, le=14)
-    ta: float | None = Field(None, ge=0)
-    ch: float | None = Field(None, ge=0)
-    cya: float | None = Field(None, ge=0)
-    salt: float | None = Field(None, ge=0)
-    borates: float | None = Field(None, ge=0)
-    water_temp_f: float | None = None
-    filter_pressure: float | None = Field(None, ge=0)
-    csi: float | None = None
+    ta: float | None = Field(None, ge=0, le=2_000)
+    ch: float | None = Field(None, ge=0, le=2_000)
+    cya: float | None = Field(None, ge=0, le=500)
+    salt: float | None = Field(None, ge=0, le=50_000)
+    borates: float | None = Field(None, ge=0, le=200)
+    water_temp_f: float | None = Field(None, ge=32, le=120)
+    filter_pressure: float | None = Field(None, ge=0, le=100)
     source: str = "manual"
     notes: str | None = None
 
@@ -74,7 +72,7 @@ class AdditionIn(BaseModel):
     added_at: str | None = None
     chemical: str
     strength_percent: float | None = Field(None, ge=1, le=100)
-    amount: float = Field(..., gt=0)
+    amount: float = Field(..., gt=0, le=100_000)
     unit: str
     reason: str | None = None
     linked_reading_id: str | None = None
@@ -87,7 +85,7 @@ class AdditionUpdate(BaseModel):
     added_at: str | None = None
     chemical: str | None = None
     strength_percent: float | None = Field(None, ge=1, le=100)
-    amount: float | None = Field(None, gt=0)
+    amount: float | None = Field(None, gt=0, le=100_000)
     unit: str | None = None
     reason: str | None = None
     linked_reading_id: str | None = None

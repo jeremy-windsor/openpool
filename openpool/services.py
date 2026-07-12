@@ -129,6 +129,7 @@ def _overview(reading: dict[str, Any] | None, include_notes: bool = False) -> di
         "waterTemp": reading.get("water_temp_f"),
         "filterPressure": reading.get("filter_pressure"),
         "csi": reading.get("csi"),
+        "csiMeta": reading.get("csi_meta"),
         "testedAt": reading.get("tested_at"),
     }
     if include_notes:

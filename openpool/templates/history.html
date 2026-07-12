@@ -62,7 +62,12 @@
           <td>{{ row.ch | num if row.ch is not none else "" }}</td>
           <td>{{ row.cya | num if row.cya is not none else "" }}</td>
           <td>{{ row.salt | num if row.salt is not none else "" }}</td>
-          <td>{{ row.csi | num if row.csi is not none else "" }}</td>
+          <td>
+            {{ row.csi | num if row.csi is not none else "" }}
+            {% if row.csi_meta and row.csi_meta.warnings %}
+            <small class="muted" title="{{ row.csi_meta.warnings | join(' ') }}">approximate</small>
+            {% endif %}
+          </td>
           <td class="row-actions">
             <a href="/readings/{{ row.id }}/edit">Edit</a>
             <form method="post" action="/readings/{{ row.id }}/delete" onsubmit="return confirm('Delete this reading?')">

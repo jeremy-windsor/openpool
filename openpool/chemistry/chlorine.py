@@ -28,6 +28,8 @@ DRY_CHLORINE_PRODUCTS = {
     "cal_hypo": None,  # label strength varies; default below
 }
 CAL_HYPO_DEFAULT_PERCENT = 65.0
+LIQUID_CHLORINE_TYPICAL_RANGE = (3.0, 15.0)
+CAL_HYPO_TYPICAL_RANGE = (35.0, 78.0)
 CHLORINE_ADDITION_CHEMICALS = frozenset(
     {"liquid_chlorine", "trichlor", "dichlor", "cal_hypo"}
 )
@@ -64,13 +66,20 @@ def dose_liquid_chlorine_for_fc(
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
 
+    strength = normalize_percent(chlorine_percent)
+    strength_warnings = []
+    if not LIQUID_CHLORINE_TYPICAL_RANGE[0] <= strength <= LIQUID_CHLORINE_TYPICAL_RANGE[1]:
+        strength_warnings.append(
+            "Liquid chlorine is typically 3-15%; confirm the label strength."
+        )
+
     delta_fc = target_fc - current_fc
     if delta_fc <= 0:
         return Dose(
             chemical="liquid_chlorine",
             amount=0.0,
             unit="fl_oz",
-            warnings=[
+            warnings=strength_warnings + [
                 "No chemical dose is calculated for lowering FC; use sunlight, time, or dilution."
             ],
             formula="dose_gallons = delta_fc * pool_gallons / (10000 * chlorine_percent)",
@@ -81,7 +90,6 @@ def dose_liquid_chlorine_for_fc(
             ],
         )
 
-    strength = normalize_percent(chlorine_percent)
     dose_gallons = delta_fc * pool_gallons / (10_000 * strength)
     dose_fl_oz = gallons_to_fl_oz(dose_gallons)
     secondary = {"gallons": rounded(dose_gallons, 3)}
@@ -95,7 +103,7 @@ def dose_liquid_chlorine_for_fc(
         unit="fl_oz",
         secondary=secondary,
         effects={"salt": rounded(delta_fc * LIQUID_CHLORINE_SALT_PER_FC, 1)},
-        warnings=["pH readings can be unreliable when FC is high."],
+        warnings=strength_warnings + ["pH readings can be unreliable when FC is high."],
         formula="dose_gallons = delta_fc * pool_gallons / (10000 * chlorine_percent)",
         source_note="Public pool chemistry identity.",
         assumptions=[
@@ -161,6 +169,11 @@ def dose_dry_chlorine_for_fc(
 
     effects: dict[str, float] = {}
     warnings: list[str] = []
+    if (
+        product == "cal_hypo"
+        and not CAL_HYPO_TYPICAL_RANGE[0] <= strength <= CAL_HYPO_TYPICAL_RANGE[1]
+    ):
+        warnings.append("Cal-hypo is typically 35-78%; confirm the label strength.")
     if product == "trichlor":
         effects["cya"] = rounded(delta_fc * TRICHLOR_CYA_PER_FC, 1)
         warnings.append("Trichlor is strongly acidic; expect pH and TA to drift down.")

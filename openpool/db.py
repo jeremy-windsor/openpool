@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import secrets
@@ -12,7 +13,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from openpool.chemistry.csi import calculate_csi
+from openpool.chemistry.csi import DEFAULT_TDS_PPM, DEFAULT_WATER_TEMP_F, calculate_csi
 
 DEFAULT_POOL_ID = "pool"
 POOL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -20,6 +21,8 @@ MIN_SHARE_TOKEN_LENGTH = 16
 POSTGRES_SCHEMES = ("postgresql://", "postgres://")
 REAL_TYPE_RE = re.compile(r"\breal\b", re.IGNORECASE)
 LOGGER = logging.getLogger(__name__)
+CSI_FORMULA_VERSION = "openpool-csi-v1"
+CURRENT_SCHEMA_VERSION = 3
 
 
 class Cursor(Protocol):
@@ -151,6 +154,35 @@ SCHEMA = (
     """,
 )
 
+SCHEMA_VERSION_SQL = """
+create table if not exists schema_version (
+  id integer primary key check (id = 1),
+  version integer not null
+)
+"""
+
+TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
+    "pool_profiles": (
+        "id", "name", "volume_gallons", "spa_volume_gallons", "surface",
+        "sanitizer", "unit_system", "timezone", "default_chlorine_percent",
+        "default_cya_target", "default_salt_target", "jug_size_fl_oz",
+        "bag_size_lbs", "share_enabled", "share_token", "include_notes_in_share",
+        "notes", "created_at", "updated_at",
+    ),
+    "test_readings": (
+        "id", "pool_id", "tested_at", "fc", "cc", "tc", "ph", "ta", "ch",
+        "cya", "salt", "borates", "water_temp_f", "filter_pressure", "csi",
+        "source", "notes", "created_at", "csi_meta_json",
+    ),
+    "chemical_additions": (
+        "id", "pool_id", "added_at", "chemical", "strength_percent", "amount",
+        "unit", "reason", "linked_reading_id", "notes", "created_at",
+    ),
+    "maintenance_events": (
+        "id", "pool_id", "event_at", "event_type", "notes", "created_at",
+    ),
+}
+
 POOL_FIELDS = {
     "id",
     "name",
@@ -175,7 +207,6 @@ READING_FIELDS = {
     "tested_at",
     "fc",
     "cc",
-    "tc",
     "ph",
     "ta",
     "ch",
@@ -184,7 +215,6 @@ READING_FIELDS = {
     "borates",
     "water_temp_f",
     "filter_pressure",
-    "csi",
     "source",
     "notes",
 }
@@ -228,6 +258,26 @@ NUMERIC_FIELDS = {
     "csi",
     "strength_percent",
     "amount",
+}
+
+NUMERIC_BOUNDS: dict[str, tuple[float | None, float | None]] = {
+    "volume_gallons": (0, 1_000_000),
+    "spa_volume_gallons": (0, 1_000_000),
+    "default_chlorine_percent": (1, 100),
+    "default_cya_target": (0, 500),
+    "default_salt_target": (0, 50_000),
+    "fc": (0, 100),
+    "cc": (0, 100),
+    "ph": (0, 14),
+    "ta": (0, 2_000),
+    "ch": (0, 2_000),
+    "cya": (0, 500),
+    "salt": (0, 50_000),
+    "borates": (0, 200),
+    "water_temp_f": (32, 120),
+    "filter_pressure": (0, 100),
+    "strength_percent": (1, 100),
+    "amount": (0, 100_000),
 }
 
 
@@ -280,9 +330,37 @@ def _schema_statement(conn: Connection, statement: str) -> str:
 
 
 def init_db(conn: Connection) -> None:
-    for statement in SCHEMA:
-        conn.execute(_schema_statement(conn, statement))
-    conn.commit()
+    try:
+        if getattr(conn, "backend", "sqlite") == "postgresql":
+            conn.execute("begin")
+        for statement in SCHEMA:
+            conn.execute(_schema_statement(conn, statement))
+        conn.execute(SCHEMA_VERSION_SQL)
+        version_row = conn.execute(
+            "select version from schema_version where id = 1"
+        ).fetchone()
+        if version_row is None:
+            conn.execute("insert into schema_version (id, version) values (1, 0)")
+            version = 0
+        else:
+            version = int(row_to_dict(version_row)["version"])
+        if version > CURRENT_SCHEMA_VERSION:
+            raise RuntimeError(
+                f"database schema version {version} is newer than supported version "
+                f"{CURRENT_SCHEMA_VERSION}"
+            )
+        for migration_version, migration in MIGRATIONS:
+            if migration_version <= version:
+                continue
+            migration(conn)
+            conn.execute(
+                "update schema_version set version = ? where id = 1",
+                (migration_version,),
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def now_utc() -> str:
@@ -394,6 +472,13 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
             value = float(value)
             if not isfinite(value):
                 raise ValueError(f"{key} must be a finite number")
+            lower, upper = NUMERIC_BOUNDS.get(key, (None, None))
+            if lower is not None and value < lower:
+                raise ValueError(f"{key} must be at least {lower:g}")
+            if upper is not None and value > upper:
+                raise ValueError(f"{key} must be at most {upper:g}")
+            if key in {"volume_gallons", "spa_volume_gallons", "amount"} and value <= 0:
+                raise ValueError(f"{key} must be greater than 0")
         if key in {"share_enabled", "include_notes_in_share"} and value is not None:
             value = 1 if value in {True, "true", "1", "on"} else 0
         cleaned[key] = value
@@ -501,9 +586,9 @@ def get_pool(conn: Connection, pool_id: str) -> dict[str, Any] | None:
     return row_to_dict(row)
 
 
-def _computed_csi(reading: dict[str, Any]) -> float | None:
-    """Compute the approximate CSI for a reading's stored values."""
-    return calculate_csi(
+def _computed_csi(reading: dict[str, Any]) -> tuple[float | None, str]:
+    """Compute CSI and persist enough provenance to explain the result."""
+    result = calculate_csi(
         ph=reading.get("ph"),
         ta=reading.get("ta"),
         ch=reading.get("ch"),
@@ -511,7 +596,256 @@ def _computed_csi(reading: dict[str, Any]) -> float | None:
         water_temp_f=reading.get("water_temp_f"),
         salt=reading.get("salt"),
         borates=reading.get("borates"),
-    ).value
+    )
+    inputs = {
+        key: reading.get(key)
+        for key in ("ph", "ta", "ch", "cya", "water_temp_f", "salt", "borates")
+    }
+    defaults = {}
+    if reading.get("water_temp_f") is None:
+        defaults["water_temp_f"] = DEFAULT_WATER_TEMP_F
+    if reading.get("salt") is None:
+        defaults["tds_ppm"] = DEFAULT_TDS_PPM
+    metadata = {
+        "formula_version": CSI_FORMULA_VERSION,
+        "inputs": inputs,
+        "defaults": defaults,
+        "warnings": result.warnings,
+    }
+    return result.value, json.dumps(metadata, separators=(",", ":"), sort_keys=True)
+
+
+def _reading_dict(row: Any | None) -> dict[str, Any] | None:
+    reading = row_to_dict(row)
+    if reading is None:
+        return None
+    raw_metadata = reading.get("csi_meta_json")
+    if raw_metadata:
+        try:
+            reading["csi_meta"] = json.loads(raw_metadata)
+        except (TypeError, json.JSONDecodeError):
+            reading["csi_meta"] = {
+                "formula_version": "unknown",
+                "warnings": ["Stored CSI provenance is invalid."],
+            }
+    else:
+        reading["csi_meta"] = None
+    return reading
+
+
+def _migrate_csi_metadata(conn: Connection) -> None:
+    conn.execute("alter table test_readings add column csi_meta_json text")
+    rows = conn.execute("select * from test_readings").fetchall()
+    for raw_row in rows:
+        reading = dict(raw_row)
+        csi, metadata = _computed_csi(reading)
+        conn.execute(
+            "update test_readings set tc = ?, csi = ?, csi_meta_json = ? where id = ?",
+            (
+                reading.get("fc") + reading.get("cc")
+                if reading.get("fc") is not None and reading.get("cc") is not None
+                else None,
+                csi,
+                metadata,
+                reading["id"],
+            ),
+        )
+
+
+def _migrate_linked_reading_integrity(conn: Connection) -> None:
+    conn.execute(
+        """
+        update chemical_additions
+        set linked_reading_id = null
+        where linked_reading_id is not null
+          and not exists (
+            select 1 from test_readings
+            where test_readings.id = chemical_additions.linked_reading_id
+              and test_readings.pool_id = chemical_additions.pool_id
+          )
+        """
+    )
+    conn.execute(
+        "create unique index if not exists idx_test_readings_id_pool "
+        "on test_readings(id, pool_id)"
+    )
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        conn.execute(
+            """
+            alter table chemical_additions
+            add constraint fk_chemical_additions_reading_pool
+            foreign key (linked_reading_id, pool_id)
+            references test_readings(id, pool_id)
+            """
+        )
+        return
+
+    conn.execute(
+        """
+        create table chemical_additions_new (
+          id text primary key,
+          pool_id text not null references pool_profiles(id) on delete cascade,
+          added_at text not null,
+          chemical text not null,
+          strength_percent real,
+          amount real not null,
+          unit text not null,
+          reason text,
+          linked_reading_id text references test_readings(id) on delete set null,
+          notes text,
+          created_at text not null,
+          foreign key (linked_reading_id, pool_id)
+            references test_readings(id, pool_id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        insert into chemical_additions_new (
+          id, pool_id, added_at, chemical, strength_percent, amount, unit,
+          reason, linked_reading_id, notes, created_at
+        )
+        select id, pool_id, added_at, chemical, strength_percent, amount, unit,
+               reason, linked_reading_id, notes, created_at
+        from chemical_additions
+        """
+    )
+    conn.execute("drop table chemical_additions")
+    conn.execute("alter table chemical_additions_new rename to chemical_additions")
+    conn.execute(
+        "create index idx_chemical_additions_pool_time "
+        "on chemical_additions(pool_id, added_at desc)"
+    )
+
+
+def _migrate_numeric_constraints(conn: Connection) -> None:
+    preflight_checks = (
+        (
+            "pool_profiles",
+            "not (volume_gallons > 0 and volume_gallons <= 1000000 "
+            "and (spa_volume_gallons is null or "
+            "(spa_volume_gallons > 0 and spa_volume_gallons <= 1000000)) "
+            "and default_chlorine_percent between 1 and 100 "
+            "and default_cya_target between 0 and 500 "
+            "and default_salt_target between 0 and 50000)",
+        ),
+        (
+            "test_readings",
+            "not ((fc is null or fc between 0 and 100) "
+            "and (cc is null or cc between 0 and 100) "
+            "and (ph is null or ph between 0 and 14) "
+            "and (ta is null or ta between 0 and 2000) "
+            "and (ch is null or ch between 0 and 2000) "
+            "and (cya is null or cya between 0 and 500) "
+            "and (salt is null or salt between 0 and 50000) "
+            "and (borates is null or borates between 0 and 200) "
+            "and (water_temp_f is null or water_temp_f between 32 and 120) "
+            "and (filter_pressure is null or filter_pressure between 0 and 100))",
+        ),
+        (
+            "chemical_additions",
+            "not (amount > 0 and amount <= 100000 "
+            "and (strength_percent is null or strength_percent between 1 and 100))",
+        ),
+    )
+    violations = []
+    for table, condition in preflight_checks:
+        row = conn.execute(
+            f"select count(*) as count from {table} where {condition}"
+        ).fetchone()
+        count = int(row_to_dict(row)["count"])
+        if count:
+            violations.append(f"{table}={count}")
+    if violations:
+        raise RuntimeError(
+            "database has values outside supported numeric bounds; repair them before "
+            f"upgrading: {', '.join(violations)}"
+        )
+
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        constraints = (
+            (
+                "pool_profiles",
+                "ck_pool_profiles_numeric_bounds",
+                "volume_gallons <= 1000000 and "
+                "(spa_volume_gallons is null or spa_volume_gallons between 0 and 1000000) and "
+                "default_chlorine_percent between 1 and 100 and "
+                "default_cya_target between 0 and 500 and "
+                "default_salt_target between 0 and 50000",
+            ),
+            (
+                "test_readings",
+                "ck_test_readings_numeric_bounds",
+                "(fc is null or fc between 0 and 100) and "
+                "(cc is null or cc between 0 and 100) and "
+                "(ph is null or ph between 0 and 14) and "
+                "(ta is null or ta between 0 and 2000) and "
+                "(ch is null or ch between 0 and 2000) and "
+                "(cya is null or cya between 0 and 500) and "
+                "(salt is null or salt between 0 and 50000) and "
+                "(borates is null or borates between 0 and 200) and "
+                "(water_temp_f is null or water_temp_f between 32 and 120) and "
+                "(filter_pressure is null or filter_pressure between 0 and 100)",
+            ),
+            (
+                "chemical_additions",
+                "ck_chemical_additions_numeric_bounds",
+                "amount > 0 and amount <= 100000 and "
+                "(strength_percent is null or strength_percent between 1 and 100)",
+            ),
+        )
+        for table, name, expression in constraints:
+            conn.execute(f"alter table {table} add constraint {name} check ({expression})")
+        return
+
+    triggers = (
+        (
+            "pool_profiles",
+            "not (new.volume_gallons > 0 and new.volume_gallons <= 1000000 "
+            "and (new.spa_volume_gallons is null or "
+            "(new.spa_volume_gallons > 0 and new.spa_volume_gallons <= 1000000)) "
+            "and new.default_chlorine_percent between 1 and 100 "
+            "and new.default_cya_target between 0 and 500 "
+            "and new.default_salt_target between 0 and 50000)",
+        ),
+        (
+            "test_readings",
+            "not ((new.fc is null or new.fc between 0 and 100) "
+            "and (new.cc is null or new.cc between 0 and 100) "
+            "and (new.ph is null or new.ph between 0 and 14) "
+            "and (new.ta is null or new.ta between 0 and 2000) "
+            "and (new.ch is null or new.ch between 0 and 2000) "
+            "and (new.cya is null or new.cya between 0 and 500) "
+            "and (new.salt is null or new.salt between 0 and 50000) "
+            "and (new.borates is null or new.borates between 0 and 200) "
+            "and (new.water_temp_f is null or new.water_temp_f between 32 and 120) "
+            "and (new.filter_pressure is null or new.filter_pressure between 0 and 100))",
+        ),
+        (
+            "chemical_additions",
+            "not (new.amount > 0 and new.amount <= 100000 "
+            "and (new.strength_percent is null or new.strength_percent between 1 and 100))",
+        ),
+    )
+    for table, condition in triggers:
+        for operation in ("insert", "update"):
+            conn.execute(
+                f"""
+                create trigger ck_{table}_numeric_bounds_{operation}
+                before {operation} on {table}
+                when {condition}
+                begin
+                  select raise(abort, 'numeric value outside supported bounds');
+                end
+                """
+            )
+
+
+MIGRATIONS = (
+    (1, _migrate_csi_metadata),
+    (2, _migrate_linked_reading_integrity),
+    (3, _migrate_numeric_constraints),
+)
 
 
 def create_reading(
@@ -527,10 +861,8 @@ def create_reading(
     data = _clean_payload(payload, READING_FIELDS)
     fc = data.get("fc")
     cc = data.get("cc")
-    if data.get("tc") is None and fc is not None and cc is not None:
-        data["tc"] = fc + cc
-    if data.get("csi") is None:
-        data["csi"] = _computed_csi(data)
+    data["tc"] = fc + cc if fc is not None and cc is not None else None
+    data["csi"], data["csi_meta_json"] = _computed_csi(data)
     row = {
         "id": uuid.uuid4().hex,
         "pool_id": pool_id,
@@ -547,6 +879,7 @@ def create_reading(
         "water_temp_f": data.get("water_temp_f"),
         "filter_pressure": data.get("filter_pressure"),
         "csi": data.get("csi"),
+        "csi_meta_json": data.get("csi_meta_json"),
         "source": data.get("source") or "manual",
         "notes": data.get("notes"),
         "created_at": now_utc(),
@@ -563,7 +896,7 @@ def create_reading(
 
 def get_reading(conn: Connection, reading_id: str) -> dict[str, Any] | None:
     row = conn.execute("select * from test_readings where id = ?", (reading_id,)).fetchone()
-    return row_to_dict(row)
+    return _reading_dict(row)
 
 
 def update_reading(
@@ -585,13 +918,9 @@ def update_reading(
             data.get("tested_at"), pool.get("timezone") or "UTC"
         )
     merged = {**existing, **data}
-    if "tc" not in data and ("fc" in data or "cc" in data):
-        fc, cc = merged.get("fc"), merged.get("cc")
-        data["tc"] = fc + cc if fc is not None and cc is not None else None
-        merged["tc"] = data["tc"]
-    if "csi" not in data:
-        # Recompute the stored CSI from the merged reading on every edit.
-        data["csi"] = _computed_csi(merged)
+    fc, cc = merged.get("fc"), merged.get("cc")
+    data["tc"] = fc + cc if fc is not None and cc is not None else None
+    data["csi"], data["csi_meta_json"] = _computed_csi(merged)
     if not data:
         return existing
 
@@ -636,9 +965,7 @@ def list_readings(
         limit ?
     """
     params.append(limit)
-    return rows_to_dicts(
-        conn.execute(query, tuple(params)).fetchall()
-    )
+    return [_reading_dict(row) or {} for row in conn.execute(query, tuple(params)).fetchall()]
 
 
 def latest_reading(conn: Connection, pool_id: str) -> dict[str, Any] | None:
@@ -652,7 +979,19 @@ def latest_reading(conn: Connection, pool_id: str) -> dict[str, Any] | None:
         """,
         (pool_id,),
     ).fetchone()
-    return row_to_dict(row)
+    return _reading_dict(row)
+
+
+def _validate_linked_reading(
+    conn: Connection, pool_id: str, linked_reading_id: str | None
+) -> None:
+    if linked_reading_id is None:
+        return
+    reading = get_reading(conn, linked_reading_id)
+    if not reading:
+        raise ValueError(f"linked reading not found: {linked_reading_id}")
+    if reading["pool_id"] != pool_id:
+        raise ValueError("linked reading must belong to the same pool")
 
 
 def create_addition(
@@ -672,6 +1011,7 @@ def create_addition(
         raise ValueError("amount is required")
     if not data.get("unit"):
         raise ValueError("unit is required")
+    _validate_linked_reading(conn, pool_id, data.get("linked_reading_id"))
 
     row = {
         "id": uuid.uuid4().hex,
@@ -724,6 +1064,7 @@ def update_addition(
         raise ValueError("amount is required")
     if not merged.get("unit"):
         raise ValueError("unit is required")
+    _validate_linked_reading(conn, pool_id, merged.get("linked_reading_id"))
     if not data:
         return existing
 

@@ -57,6 +57,9 @@
   </div>
   {% if snapshot.overview %}
   {% with tiles = snapshot.tiles %}{% include "_reading_tiles.html" %}{% endwith %}
+  {% if snapshot.overview.csiMeta and snapshot.overview.csiMeta.warnings %}
+  <p class="muted">CSI assumptions: {{ snapshot.overview.csiMeta.warnings | join(' ') }}</p>
+  {% endif %}
   {% else %}
   <article class="empty">
     <span class="empty-mark" aria-hidden="true">

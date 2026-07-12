@@ -138,9 +138,7 @@ async def save_reading_edit(
     form = _empty_to_none(await _form_data(request))
     try:
         reading = validate_model(ReadingIn, form)
-        payload = _form_update_payload(
-            reading, drop=("csi", "tc", "source"), keep_if_set=("tested_at",)
-        )
+        payload = _form_update_payload(reading, drop=("source",), keep_if_set=("tested_at",))
         db.update_reading(conn, pool_id, reading_id, payload)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc

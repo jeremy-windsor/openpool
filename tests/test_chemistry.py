@@ -161,6 +161,16 @@ def test_normalize_percent_rejects_ambiguous_or_impossible_values(strength):
         normalize_percent(strength)
 
 
+def test_unusual_chlorine_strengths_warn_without_refusing():
+    liquid = dose_liquid_chlorine_for_fc(10_000, 2, 4, chlorine_percent=20)
+    cal_hypo = dose_dry_chlorine_for_fc(
+        10_000, 2, 4, "cal_hypo", available_chlorine_percent=20
+    )
+
+    assert any("typically 3-15%" in warning for warning in liquid.warnings)
+    assert any("typically 35-78%" in warning for warning in cal_hypo.warnings)
+
+
 def test_ppm_to_pounds_identity():
     # 1 ppm by mass in 1,000,000 lb of water equals 1 lb of solute.
     pounds = ppm_to_pounds(1, 1_000_000 / 8.345404452)

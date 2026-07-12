@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from datetime import UTC, datetime
 
 import pytest
@@ -25,6 +26,8 @@ def test_reading_persists_and_computes_tc(conn):
     latest = db.latest_reading(conn, "example")
     assert latest["id"] == reading["id"]
     assert latest["tc"] == 3.5
+    assert latest["csi_meta"]["formula_version"] == db.CSI_FORMULA_VERSION
+    assert "warnings" in latest["csi_meta"]
     # America/Phoenix is UTC-7; 09:15 local becomes 16:15 UTC.
     assert latest["tested_at"] == "2026-06-07T16:15:00Z"
 
@@ -110,6 +113,151 @@ def test_invalid_pool_id_rejected(conn):
 def test_reading_schema_rejects_impossible_values():
     with pytest.raises(ValueError):
         ReadingIn(fc=-1, ph=20)
+
+
+def test_client_cannot_supply_server_owned_reading_values():
+    with pytest.raises(ValueError):
+        ReadingIn(fc=3, cc=0.5, tc=99)
+    with pytest.raises(ValueError):
+        ReadingIn(fc=3, csi=99)
+
+
+def test_db_ignores_server_owned_reading_values(conn):
+    reading = db.create_reading(conn, "example", {"fc": 3, "cc": 0.5, "tc": 99, "csi": 99})
+
+    assert reading["tc"] == 3.5
+    assert reading["csi"] is None
+
+
+def test_linked_reading_must_belong_to_same_pool(conn):
+    db.create_pool(conn, {"id": "other", "volume_gallons": 10_000})
+    reading = db.create_reading(conn, "other", {"fc": 3})
+
+    with pytest.raises(ValueError, match="same pool"):
+        db.create_addition(
+            conn,
+            "example",
+            {
+                "chemical": "liquid_chlorine",
+                "amount": 10,
+                "unit": "fl_oz",
+                "linked_reading_id": reading["id"],
+            },
+        )
+
+
+def test_database_rejects_cross_pool_link_and_out_of_bounds_values(conn):
+    db.create_pool(conn, {"id": "other", "volume_gallons": 10_000})
+    reading = db.create_reading(conn, "other", {"fc": 3})
+
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            """
+            insert into chemical_additions (
+              id, pool_id, added_at, chemical, amount, unit, linked_reading_id, created_at
+            ) values ('bad-link', 'example', '2026-01-01Z', 'salt', 1, 'lb', ?, '2026-01-01Z')
+            """,
+            (reading["id"],),
+        )
+    conn.rollback()
+
+
+def test_schema_copier_and_export_columns_share_one_contract(conn):
+    from openpool import migrate
+
+    assert dict(migrate.TABLES) == db.TABLE_COLUMNS
+    for table, expected in db.TABLE_COLUMNS.items():
+        actual = tuple(
+            row["name"] for row in conn.execute(f"pragma table_info({table})").fetchall()
+        )
+        assert actual == expected
+
+    with pytest.raises(sqlite3.IntegrityError, match="supported bounds"):
+        conn.execute(
+            """
+            insert into test_readings (
+              id, pool_id, tested_at, fc, source, created_at
+            ) values ('bad-reading', 'example', '2026-01-01Z', 101, 'manual', '2026-01-01Z')
+            """
+        )
+    conn.rollback()
+
+
+def test_unversioned_sqlite_database_upgrades_in_place(tmp_path):
+    path = tmp_path / "legacy.sqlite"
+    legacy = sqlite3.connect(path)
+    try:
+        for statement in db.SCHEMA:
+            legacy.execute(statement)
+        legacy.execute(
+            """
+            insert into pool_profiles (
+              id, name, volume_gallons, created_at, updated_at
+            ) values ('legacy', 'Legacy', 10000, '2026-01-01Z', '2026-01-01Z')
+            """
+        )
+        legacy.execute(
+            """
+            insert into test_readings (
+              id, pool_id, tested_at, fc, cc, tc, ph, ta, ch, source, created_at
+            ) values (
+              'reading', 'legacy', '2026-01-01Z', 3, 0.5, 99, 7.6, 80, 300,
+              'manual', '2026-01-01Z'
+            )
+            """
+        )
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = db.connect(path)
+    try:
+        db.init_db(conn)
+        version = conn.execute("select version from schema_version").fetchone()["version"]
+        reading = db.get_reading(conn, "reading")
+    finally:
+        conn.close()
+
+    assert version == db.CURRENT_SCHEMA_VERSION
+    assert reading["tc"] == 3.5
+    assert reading["csi_meta"]["formula_version"] == db.CSI_FORMULA_VERSION
+
+
+def test_upgrade_refuses_to_destroy_out_of_bounds_legacy_data(tmp_path):
+    path = tmp_path / "legacy-oob.sqlite"
+    legacy = sqlite3.connect(path)
+    try:
+        for statement in db.SCHEMA:
+            legacy.execute(statement)
+        legacy.execute(
+            """
+            insert into pool_profiles (
+              id, name, volume_gallons, created_at, updated_at
+            ) values ('legacy', 'Legacy', 10000, '2026-01-01Z', '2026-01-01Z')
+            """
+        )
+        legacy.execute(
+            """
+            insert into test_readings (
+              id, pool_id, tested_at, fc, source, created_at
+            ) values ('reading', 'legacy', '2026-01-01Z', 101, 'manual', '2026-01-01Z')
+            """
+        )
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = db.connect(path)
+    try:
+        with pytest.raises(RuntimeError, match="test_readings=1"):
+            db.init_db(conn)
+        preserved = conn.execute(
+            "select fc from test_readings where id = 'reading'"
+        ).fetchone()["fc"]
+    finally:
+        conn.close()
+
+    assert preserved == 101
 
 
 def test_default_pool_uses_configured_timezone(conn):

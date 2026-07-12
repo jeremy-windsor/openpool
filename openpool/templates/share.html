@@ -19,6 +19,9 @@
       {% if snapshot.overview %}
       <section>
         {% with tiles = snapshot.tiles %}{% include "_reading_tiles.html" %}{% endwith %}
+        {% if snapshot.overview.csiMeta and snapshot.overview.csiMeta.warnings %}
+        <p class="muted">CSI assumptions: {{ snapshot.overview.csiMeta.warnings | join(' ') }}</p>
+        {% endif %}
       </section>
       {% endif %}
       <footer class="muted">openpool</footer>

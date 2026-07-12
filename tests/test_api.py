@@ -74,7 +74,15 @@ def test_app_shell_links_icons_and_manifest(client):
 def test_dashboard_cautions_for_non_chlorine_out_of_range_readings(client):
     created = client.post(
         "/api/pools/example/readings",
-        json={"fc": 6, "cya": 40, "ch": 900, "csi": 0.7},
+        json={
+            "fc": 6,
+            "cya": 40,
+            "ph": 7.8,
+            "ta": 120,
+            "ch": 900,
+            "salt": 3000,
+            "water_temp_f": 90,
+        },
     )
     assert created.status_code == 201
 
@@ -225,11 +233,38 @@ def test_calculate_liquid_chlorine(client):
 
 
 def test_readings_csv_export(client):
+    from openpool import db
+
     client.post("/api/pools/example/readings", json={"fc": 3, "cya": 40})
     response = client.get("/api/pools/example/export/readings.csv")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert "tested_at" in response.text
+    assert "csi_meta_json" in response.text
+    assert response.text.splitlines()[0].split(",") == list(
+        db.TABLE_COLUMNS["test_readings"]
+    )
+
+
+def test_csi_provenance_is_exposed_in_api_dashboard_and_share(client):
+    created = client.post(
+        "/api/pools/example/readings",
+        json={"fc": 3, "ph": 7.6, "ta": 80, "ch": 300},
+    )
+    assert created.status_code == 201
+    assert created.json()["csi_meta"]["formula_version"] == "openpool-csi-v1"
+
+    dashboard = client.get("/")
+    assert "CSI assumptions:" in dashboard.text
+    assert "assuming 80 F" in dashboard.text
+
+    client.put(
+        "/api/pools/example",
+        json={"share_enabled": True, "share_token": "read-only-token-123"},
+    )
+    shared = client.get("/share/example", params={"token": "read-only-token-123"})
+    assert shared.status_code == 200
+    assert "CSI assumptions:" in shared.text
 
 
 def test_share_disabled_returns_403(client):
@@ -768,7 +803,7 @@ def test_history_date_range_finds_rows_older_than_newest_100(client):
             db.create_reading(
                 conn,
                 "example",
-                {"tested_at": f"{day.isoformat()}T12:00:00Z", "fc": 10 + offset},
+                {"tested_at": f"{day.isoformat()}T12:00:00Z", "fc": offset % 100},
             )
         db.create_reading(
             conn,

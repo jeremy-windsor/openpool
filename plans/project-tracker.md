@@ -221,10 +221,14 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
 ## Current Requirements
 
 Gate P requirements are defined in
-`plans/hardening-and-pilot-readiness-plan.md`. The P-min dosing and locked-build
-slice is implemented; remaining work includes schema migrations, server-owned
-derived values, CSI provenance, cross-pool link enforcement, validation bounds,
-form error preservation, offline safety behavior, and native backup/restore.
+`plans/hardening-and-pilot-readiness-plan.md`. The P-min dosing, locked-build,
+native backup/restore, and trustworthy-records slices are implemented.
+Trustworthy records now includes ordered transactional SQLite/PostgreSQL schema
+migrations, server-owned TC/CSI, persisted CSI provenance, same-pool
+linked-reading enforcement, hard numeric bounds, database backstops, and
+copier/export parity. Remaining Gate P work includes form error preservation,
+offline safety behavior, metric-label honesty, and the critical independent
+chemistry fixtures.
 
 ## Moved Later
 
