@@ -26,6 +26,8 @@ PUT  /api/pools/{pool_id}
 ```
 
 Pool IDs are limited to letters, numbers, underscores, and dashes.
+`surface` is one of `plaster`, `fiberglass`, or `vinyl`; plaster includes
+cementitious pebble and aggregate finishes for calculation grouping.
 
 ## Readings
 

@@ -16,7 +16,11 @@
       {{ field_errors(errors | default({}), "volume_gallons") }}
     </label>
     <label>Surface
-      <input name="surface" value="{{ pool.surface }}">
+      <select name="surface">
+        <option value="plaster" {% if pool.surface == "plaster" %}selected{% endif %}>Plaster / pebble / aggregate</option>
+        <option value="fiberglass" {% if pool.surface == "fiberglass" %}selected{% endif %}>Fiberglass</option>
+        <option value="vinyl" {% if pool.surface == "vinyl" %}selected{% endif %}>Vinyl liner</option>
+      </select>
       {{ field_errors(errors | default({}), "surface") }}
     </label>
     <label>Sanitizer

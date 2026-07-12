@@ -214,6 +214,28 @@ def test_settings_tells_truth_about_us_only_display(client):
     assert rejected.status_code == 422
 
 
+def test_settings_surface_is_a_controlled_selection(client):
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert '<select name="surface">' in response.text
+    assert 'value="plaster" selected' in response.text
+    assert "Plaster / pebble / aggregate" in response.text
+    assert 'value="fiberglass"' in response.text
+    assert 'value="vinyl"' in response.text
+    assert '<input name="surface"' not in response.text
+
+
+def test_pool_api_rejects_unknown_surface(client):
+    response = client.post(
+        "/api/pools",
+        json={"id": "bad-surface", "surface": "painted-concrete"},
+    )
+
+    assert response.status_code == 422
+    assert "surface" in response.text
+
+
 def test_settings_missing_pool_is_404(client):
     client.app.state.default_pool_id = "missing-pool"
 

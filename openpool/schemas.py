@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+PoolSurface = Literal["plaster", "fiberglass", "vinyl"]
+
 
 class PoolIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -12,7 +14,7 @@ class PoolIn(BaseModel):
     name: str = "Home Pool"
     volume_gallons: float = Field(20_000, gt=0, le=1_000_000)
     spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
-    surface: str = "plaster"
+    surface: PoolSurface = "plaster"
     sanitizer: str = "liquid_chlorine"
     unit_system: Literal["us"] = "us"
     timezone: str = "UTC"
@@ -33,7 +35,7 @@ class PoolUpdate(BaseModel):
     name: str | None = None
     volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
     spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
-    surface: str | None = None
+    surface: PoolSurface | None = None
     sanitizer: str | None = None
     unit_system: Literal["us"] | None = None
     timezone: str | None = None
