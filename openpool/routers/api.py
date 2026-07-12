@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from sqlite3 import Connection
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from openpool import __version__, db, services
@@ -27,7 +25,7 @@ def _not_found(pool_id: str) -> HTTPException:
 
 
 @router.get("/api/health")
-def health(conn: Connection = Depends(get_db)) -> dict[str, object]:
+def health(conn: db.Connection = Depends(get_db)) -> dict[str, object]:
     settings = get_settings()
     conn.execute("select 1")
     return {
@@ -51,12 +49,12 @@ def version() -> dict[str, object]:
 
 
 @router.get("/api/pools")
-def list_pools(conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
+def list_pools(conn: db.Connection = Depends(get_db)) -> list[dict[str, object]]:
     return db.public_pools(db.list_pools(conn))
 
 
 @router.post("/api/pools", status_code=201)
-def create_pool(pool: PoolIn, conn: Connection = Depends(get_db)) -> dict[str, object]:
+def create_pool(pool: PoolIn, conn: db.Connection = Depends(get_db)) -> dict[str, object]:
     try:
         created = db.create_pool(conn, dump_model(pool, exclude_none=True))
         return db.public_pool(created)
@@ -65,7 +63,7 @@ def create_pool(pool: PoolIn, conn: Connection = Depends(get_db)) -> dict[str, o
 
 
 @router.get("/api/pools/{pool_id}")
-def get_pool(pool_id: str, conn: Connection = Depends(get_db)) -> dict[str, object]:
+def get_pool(pool_id: str, conn: db.Connection = Depends(get_db)) -> dict[str, object]:
     try:
         pool = db.get_pool(conn, pool_id)
     except ValueError as exc:
@@ -79,7 +77,7 @@ def get_pool(pool_id: str, conn: Connection = Depends(get_db)) -> dict[str, obje
 def update_pool(
     pool_id: str,
     pool: PoolUpdate,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         updated = db.update_pool(
@@ -95,7 +93,7 @@ def update_pool(
 
 
 @router.get("/api/pools/{pool_id}/readings")
-def list_readings(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
+def list_readings(pool_id: str, conn: db.Connection = Depends(get_db)) -> list[dict[str, object]]:
     try:
         if not db.get_pool(conn, pool_id):
             raise _not_found(pool_id)
@@ -108,7 +106,7 @@ def list_readings(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict
 def create_reading(
     pool_id: str,
     reading: ReadingIn,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.create_reading(conn, pool_id, dump_model(reading, exclude_none=True))
@@ -119,7 +117,10 @@ def create_reading(
 
 
 @router.get("/api/pools/{pool_id}/readings/latest")
-def latest_reading(pool_id: str, conn: Connection = Depends(get_db)) -> dict[str, object] | None:
+def latest_reading(
+    pool_id: str,
+    conn: db.Connection = Depends(get_db),
+) -> dict[str, object] | None:
     try:
         if not db.get_pool(conn, pool_id):
             raise _not_found(pool_id)
@@ -132,7 +133,7 @@ def latest_reading(pool_id: str, conn: Connection = Depends(get_db)) -> dict[str
 def get_reading(
     pool_id: str,
     reading_id: str,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         if not db.get_pool(conn, pool_id):
@@ -150,7 +151,7 @@ def update_reading(
     pool_id: str,
     reading_id: str,
     reading: ReadingIn,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.update_reading(
@@ -169,7 +170,7 @@ def update_reading(
 def delete_reading(
     pool_id: str,
     reading_id: str,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
         db.delete_reading(conn, pool_id, reading_id)
@@ -180,7 +181,7 @@ def delete_reading(
 
 
 @router.get("/api/pools/{pool_id}/additions")
-def list_additions(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
+def list_additions(pool_id: str, conn: db.Connection = Depends(get_db)) -> list[dict[str, object]]:
     try:
         if not db.get_pool(conn, pool_id):
             raise _not_found(pool_id)
@@ -193,7 +194,7 @@ def list_additions(pool_id: str, conn: Connection = Depends(get_db)) -> list[dic
 def create_addition(
     pool_id: str,
     addition: AdditionIn,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.create_addition(conn, pool_id, dump_model(addition, exclude_none=True))
@@ -208,7 +209,7 @@ def update_addition(
     pool_id: str,
     addition_id: str,
     addition: AdditionUpdate,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.update_addition(
@@ -227,7 +228,7 @@ def update_addition(
 def delete_addition(
     pool_id: str,
     addition_id: str,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
         db.delete_addition(conn, pool_id, addition_id)
@@ -238,7 +239,10 @@ def delete_addition(
 
 
 @router.get("/api/pools/{pool_id}/maintenance")
-def list_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> list[dict[str, object]]:
+def list_maintenance(
+    pool_id: str,
+    conn: db.Connection = Depends(get_db),
+) -> list[dict[str, object]]:
     try:
         if not db.get_pool(conn, pool_id):
             raise _not_found(pool_id)
@@ -251,7 +255,7 @@ def list_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> list[d
 def create_maintenance(
     pool_id: str,
     event: MaintenanceIn,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.create_maintenance(conn, pool_id, dump_model(event, exclude_none=True))
@@ -266,7 +270,7 @@ def update_maintenance(
     pool_id: str,
     event_id: str,
     event: MaintenanceUpdate,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         return db.update_maintenance(
@@ -285,7 +289,7 @@ def update_maintenance(
 def delete_maintenance(
     pool_id: str,
     event_id: str,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
         db.delete_maintenance(conn, pool_id, event_id)
@@ -299,7 +303,7 @@ def delete_maintenance(
 def calculate(
     pool_id: str,
     calculation: CalculationIn,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         pool = db.get_pool(conn, pool_id)
@@ -315,7 +319,7 @@ def calculate(
 def share_json(
     pool_id: str,
     token: str | None = None,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
         pool = db.get_pool(conn, pool_id)

@@ -30,6 +30,7 @@ def conn(tmp_path):
 def client(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
+    monkeypatch.delenv("OPENPOOL_DATABASE_URL", raising=False)
     monkeypatch.setenv("OPENPOOL_DB", str(tmp_path / "openpool.sqlite"))
     monkeypatch.setenv("OPENPOOL_DEFAULT_POOL_ID", "example")
     monkeypatch.setenv("OPENPOOL_TIMEZONE", "America/Phoenix")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
-from sqlite3 import Connection
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -36,13 +36,16 @@ def _empty_to_none(data: dict[str, str]) -> dict[str, str | None]:
     return {key: (None if value == "" else value) for key, value in data.items()}
 
 
-def _pool_id() -> str:
-    return get_settings().default_pool_id
+def _pool_id(request: Request | None = None) -> str:
+    configured = get_settings().default_pool_id
+    if request is None:
+        return configured
+    return str(getattr(request.app.state, "default_pool_id", configured))
 
 
 @router.get("/")
-def dashboard(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def dashboard(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     snapshot = services.build_snapshot(conn, pool_id)
     return templates.TemplateResponse(
         request=request,
@@ -51,9 +54,22 @@ def dashboard(request: Request, conn: Connection = Depends(get_db)):
     )
 
 
+@router.get("/help")
+def help_page(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="help.html",
+        context={
+            "title": "Help",
+            "base_url": str(request.base_url).rstrip("/"),
+            "pool_id": _pool_id(request),
+        },
+    )
+
+
 @router.get("/readings/new")
-def new_reading(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def new_reading(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     latest = db.latest_reading(conn, pool_id)
     return templates.TemplateResponse(
         request=request,
@@ -63,8 +79,8 @@ def new_reading(request: Request, conn: Connection = Depends(get_db)):
 
 
 @router.post("/readings/new")
-async def save_reading(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+async def save_reading(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         reading = validate_model(ReadingIn, form)
@@ -90,8 +106,8 @@ def _form_update_payload(model, drop: tuple[str, ...], keep_if_set: tuple[str, .
 
 
 @router.get("/readings/{reading_id}/edit")
-def edit_reading(reading_id: str, request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def edit_reading(reading_id: str, request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     reading = db.get_reading(conn, reading_id)
     if not pool or not reading or reading["pool_id"] != pool_id:
@@ -115,9 +131,9 @@ def edit_reading(reading_id: str, request: Request, conn: Connection = Depends(g
 async def save_reading_edit(
     reading_id: str,
     request: Request,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ):
-    pool_id = _pool_id()
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         reading = validate_model(ReadingIn, form)
@@ -133,8 +149,12 @@ async def save_reading_edit(
 
 
 @router.post("/readings/{reading_id}/delete")
-def delete_reading_page(reading_id: str, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def delete_reading_page(
+    reading_id: str,
+    request: Request,
+    conn: db.Connection = Depends(get_db),
+):
+    pool_id = _pool_id(request)
     try:
         db.delete_reading(conn, pool_id, reading_id)
     except KeyError as exc:
@@ -152,8 +172,8 @@ def new_addition(request: Request):
 
 
 @router.post("/additions/new")
-async def save_addition(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+async def save_addition(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         addition = validate_model(AdditionIn, form)
@@ -164,8 +184,8 @@ async def save_addition(request: Request, conn: Connection = Depends(get_db)):
 
 
 @router.get("/additions/{addition_id}/edit")
-def edit_addition(addition_id: str, request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def edit_addition(addition_id: str, request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     addition = db.get_addition(conn, addition_id)
     if not pool or not addition or addition["pool_id"] != pool_id:
@@ -189,9 +209,9 @@ def edit_addition(addition_id: str, request: Request, conn: Connection = Depends
 async def save_addition_edit(
     addition_id: str,
     request: Request,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ):
-    pool_id = _pool_id()
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         addition = validate_model(AdditionIn, form)
@@ -207,8 +227,12 @@ async def save_addition_edit(
 
 
 @router.post("/additions/{addition_id}/delete")
-def delete_addition_page(addition_id: str, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def delete_addition_page(
+    addition_id: str,
+    request: Request,
+    conn: db.Connection = Depends(get_db),
+):
+    pool_id = _pool_id(request)
     try:
         db.delete_addition(conn, pool_id, addition_id)
     except KeyError as exc:
@@ -226,8 +250,8 @@ def new_maintenance(request: Request):
 
 
 @router.post("/maintenance/new")
-async def save_maintenance(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+async def save_maintenance(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         event = validate_model(MaintenanceIn, form)
@@ -238,8 +262,8 @@ async def save_maintenance(request: Request, conn: Connection = Depends(get_db))
 
 
 @router.get("/maintenance/{event_id}/edit")
-def edit_maintenance(event_id: str, request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def edit_maintenance(event_id: str, request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     event = db.get_maintenance(conn, event_id)
     if not pool or not event or event["pool_id"] != pool_id:
@@ -263,9 +287,9 @@ def edit_maintenance(event_id: str, request: Request, conn: Connection = Depends
 async def save_maintenance_edit(
     event_id: str,
     request: Request,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ):
-    pool_id = _pool_id()
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         event = validate_model(MaintenanceIn, form)
@@ -279,8 +303,12 @@ async def save_maintenance_edit(
 
 
 @router.post("/maintenance/{event_id}/delete")
-def delete_maintenance_page(event_id: str, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def delete_maintenance_page(
+    event_id: str,
+    request: Request,
+    conn: db.Connection = Depends(get_db),
+):
+    pool_id = _pool_id(request)
     try:
         db.delete_maintenance(conn, pool_id, event_id)
     except KeyError as exc:
@@ -288,21 +316,34 @@ def delete_maintenance_page(event_id: str, conn: Connection = Depends(get_db)):
     return RedirectResponse("/history", status_code=303)
 
 
-def _filter_by_date(
-    rows: list[dict], local_key: str, start: str | None, end: str | None
-) -> list[dict]:
-    """Keep rows whose pool-local date falls inside the inclusive range."""
-    if not start and not end:
-        return rows
-    kept = []
-    for row in rows:
-        day = (row.get(local_key) or "")[:10]
-        if start and day < start:
-            continue
-        if end and day > end:
-            continue
-        kept.append(row)
-    return kept
+def _history_utc_bounds(
+    start: str | None,
+    end: str | None,
+    timezone_name: str,
+) -> tuple[str | None, str | None]:
+    try:
+        start_utc = None
+        if start:
+            start_day = date.fromisoformat(start)
+            start_utc = db.normalize_timestamp(f"{start_day.isoformat()}T00:00:00", timezone_name)
+
+        end_utc = None
+        if end:
+            end_day = date.fromisoformat(end) + timedelta(days=1)
+            end_utc = db.normalize_timestamp(f"{end_day.isoformat()}T00:00:00", timezone_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return start_utc, end_utc
+
+
+def _parse_optional_float(name: str, raw: str | None) -> tuple[float | None, str | None]:
+    if raw is None or raw.strip() == "":
+        return None, None
+    try:
+        return float(raw), None
+    except ValueError:
+        return None, f"{name.replace('_', ' ')} must be a number"
 
 
 @router.get("/history")
@@ -311,26 +352,25 @@ def history(
     record: str = "all",
     start: str | None = None,
     end: str | None = None,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ):
-    pool_id = _pool_id()
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     timezone_name = pool.get("timezone") if pool else "UTC"
-    readings = db.list_readings(conn, pool_id)
+    start_utc, end_utc = _history_utc_bounds(start, end, timezone_name)
+
+    readings = db.list_readings(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in readings:
         row["tested_at_local"] = db.local_timestamp(row.get("tested_at"), timezone_name)
-    additions = db.list_additions(conn, pool_id)
+    additions = db.list_additions(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in additions:
         row["added_at_local"] = db.local_timestamp(row.get("added_at"), timezone_name)
-    maintenance = db.list_maintenance(conn, pool_id)
+    maintenance = db.list_maintenance(conn, pool_id, start_utc=start_utc, end_utc=end_utc)
     for row in maintenance:
         row["event_at_local"] = db.local_timestamp(row.get("event_at"), timezone_name)
 
     if record not in {"all", "readings", "additions", "maintenance"}:
         record = "all"
-    readings = _filter_by_date(readings, "tested_at_local", start, end)
-    additions = _filter_by_date(additions, "added_at_local", start, end)
-    maintenance = _filter_by_date(maintenance, "event_at_local", start, end)
 
     return templates.TemplateResponse(
         request=request,
@@ -352,45 +392,52 @@ def history(
 def calculator(
     request: Request,
     goal: str = "raise_fc",
-    current: float | None = None,
-    target: float | None = None,
-    pool_gallons: float | None = None,
-    strength: float | None = None,
+    current: str | None = None,
+    target: str | None = None,
+    pool_gallons: str | None = None,
+    strength: str | None = None,
     product: str | None = None,
-    ta: float | None = None,
-    cya: float | None = None,
-    borates: float | None = None,
-    cell_lbs_per_day: float | None = None,
-    pump_hours: float | None = None,
-    conn: Connection = Depends(get_db),
+    ta: str | None = None,
+    cya: str | None = None,
+    borates: str | None = None,
+    cell_lbs_per_day: str | None = None,
+    pump_hours: str | None = None,
+    conn: db.Connection = Depends(get_db),
 ):
-    pool_id = _pool_id()
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     if not pool:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
 
-    values = {
+    raw_numbers = {
         "current": current,
         "target": target,
         "pool_gallons": pool_gallons,
         "strength": strength,
-        "product": product,
         "ta": ta,
         "cya": cya,
         "borates": borates,
         "cell_lbs_per_day": cell_lbs_per_day,
         "pump_hours": pump_hours,
     }
+    values = {"product": product}
+    parse_errors: list[str] = []
+    for name, raw in raw_numbers.items():
+        parsed, parse_error = _parse_optional_float(name, raw)
+        values[name] = parsed
+        if parse_error:
+            parse_errors.append(parse_error)
+
     # Only attempt a calculation once the goal's primary inputs are filled in;
     # anything still missing surfaces as an inline form error, not a 400 page.
     ready = {
-        "slam_fc": current is not None,
-        "swg_runtime": target is not None or cell_lbs_per_day is not None,
-    }.get(goal, current is not None and target is not None)
+        "slam_fc": values["current"] is not None,
+        "swg_runtime": values["target"] is not None or values["cell_lbs_per_day"] is not None,
+    }.get(goal, values["current"] is not None and values["target"] is not None)
 
     result = None
-    error = None
-    if ready:
+    error = "; ".join(parse_errors) if parse_errors else None
+    if ready and not error:
         try:
             result = services.calculate_goal(pool, goal, values)
         except ValueError as exc:
@@ -411,8 +458,8 @@ def calculator(
 
 
 @router.get("/settings")
-def settings_page(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+def settings_page(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
     return templates.TemplateResponse(
         request=request,
@@ -422,8 +469,8 @@ def settings_page(request: Request, conn: Connection = Depends(get_db)):
 
 
 @router.post("/settings")
-async def save_settings(request: Request, conn: Connection = Depends(get_db)):
-    pool_id = _pool_id()
+async def save_settings(request: Request, conn: db.Connection = Depends(get_db)):
+    pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
         pool = db.get_pool(conn, pool_id)
@@ -442,7 +489,7 @@ def share_page(
     pool_id: str,
     request: Request,
     token: str | None = None,
-    conn: Connection = Depends(get_db),
+    conn: db.Connection = Depends(get_db),
 ):
     try:
         pool = db.get_pool(conn, pool_id)

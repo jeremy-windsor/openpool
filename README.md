@@ -7,7 +7,7 @@ Self-hosted pool chemistry logbook and calculator.
 ## Planned shape
 
 - FastAPI backend
-- SQLite local database
+- SQLite local database by default, with optional PostgreSQL
 - Mobile-friendly web UI
 - Pool chemistry calculator using public pool-care methodology and first-principles chemistry
 - Test reading history
@@ -23,7 +23,8 @@ Self-hosted pool chemistry logbook and calculator.
 
 Early implementation. The repository now contains the first FastAPI + SQLite
 slice: pool profile storage, manual reading entry, reading history, CSV export,
-share JSON, and initial chlorine/CYA/salt calculations.
+share JSON, and initial chlorine/CYA/salt calculations. PostgreSQL can be used
+instead by setting `OPENPOOL_DATABASE_URL`.
 
 ## Run locally
 
@@ -38,6 +39,32 @@ Then open:
 ```text
 http://localhost:5280
 ```
+
+PostgreSQL Docker stack:
+
+```bash
+docker compose -f docker-compose.postgres.yml up --build
+```
+
+SQLite is still the default. To use PostgreSQL without the compose file, install
+the optional dependency and set a connection string:
+
+```bash
+uv sync --extra dev --extra postgres
+OPENPOOL_DATABASE_URL=postgresql://openpool:openpool@localhost:5432/openpool \
+  uv run uvicorn openpool.main:app --reload --host 127.0.0.1 --port 5280
+```
+
+To copy existing SQLite data into PostgreSQL:
+
+```bash
+OPENPOOL_DATABASE_URL=postgresql://openpool:openpool@localhost:5432/openpool \
+  uv run openpool-migrate --sqlite data/openpool.sqlite --dry-run
+OPENPOOL_DATABASE_URL=postgresql://openpool:openpool@localhost:5432/openpool \
+  uv run openpool-migrate --sqlite data/openpool.sqlite
+```
+
+Add `--truncate` to clear the destination OpenPool tables before copying.
 
 Python development environment:
 
@@ -59,8 +86,10 @@ uv run pytest -q
 
 The committed suite under `tests/` covers the chemistry engine (with public
 reference fixtures in `tests/fixtures/`), SQLite persistence, and FastAPI
-routes. GitHub Actions runs ruff and pytest on every push and pull request, and
-the container image only publishes after that job passes.
+routes. PostgreSQL tests are included and skipped unless
+`OPENPOOL_TEST_DATABASE_URL` points at a test database. GitHub Actions runs ruff
+and pytest on every push and pull request, and the container image only
+publishes after that job passes.
 
 Published GHCR image, after the GitHub Actions build has run:
 

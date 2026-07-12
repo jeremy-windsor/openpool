@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import io
-from sqlite3 import Connection
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import JSONResponse
@@ -24,7 +23,7 @@ def _safe_csv_row(row: dict[str, object]) -> dict[str, object]:
 
 
 @router.get("/api/pools/{pool_id}/export/readings.csv")
-def export_readings(pool_id: str, conn: Connection = Depends(get_db)) -> Response:
+def export_readings(pool_id: str, conn: db.Connection = Depends(get_db)) -> Response:
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
@@ -64,7 +63,7 @@ def export_readings(pool_id: str, conn: Connection = Depends(get_db)) -> Respons
 
 
 @router.get("/api/pools/{pool_id}/export/additions.csv")
-def export_additions(pool_id: str, conn: Connection = Depends(get_db)) -> Response:
+def export_additions(pool_id: str, conn: db.Connection = Depends(get_db)) -> Response:
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
@@ -97,7 +96,7 @@ def export_additions(pool_id: str, conn: Connection = Depends(get_db)) -> Respon
 
 
 @router.get("/api/pools/{pool_id}/export/maintenance.csv")
-def export_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> Response:
+def export_maintenance(pool_id: str, conn: db.Connection = Depends(get_db)) -> Response:
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
@@ -125,7 +124,7 @@ def export_maintenance(pool_id: str, conn: Connection = Depends(get_db)) -> Resp
 
 
 @router.get("/api/pools/{pool_id}/export/all.json")
-def export_all(pool_id: str, conn: Connection = Depends(get_db)) -> JSONResponse:
+def export_all(pool_id: str, conn: db.Connection = Depends(get_db)) -> JSONResponse:
     try:
         pool = db.get_pool(conn, pool_id)
         if not pool:

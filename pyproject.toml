@@ -21,9 +21,13 @@ dev = [
   "pytest>=8,<9",
   "ruff>=0.8,<1",
 ]
+postgres = [
+  "psycopg[binary]>=3.2,<4",
+]
 
 [project.scripts]
 openpool = "openpool.main:run"
+openpool-migrate = "openpool.migrate:main"
 
 [tool.setuptools.packages.find]
 include = ["openpool*"]
@@ -39,4 +43,3 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 # B008: FastAPI's `Depends(...)` in argument defaults is the framework idiom.
 ignore = ["B008"]
-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 import sqlite3
@@ -8,13 +9,61 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from math import isfinite
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from openpool.chemistry.csi import calculate_csi
 
+DEFAULT_POOL_ID = "pool"
 POOL_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MIN_SHARE_TOKEN_LENGTH = 16
+POSTGRES_SCHEMES = ("postgresql://", "postgres://")
+REAL_TYPE_RE = re.compile(r"\breal\b", re.IGNORECASE)
+LOGGER = logging.getLogger(__name__)
+
+
+class Cursor(Protocol):
+    rowcount: int
+
+    def fetchone(self) -> Any | None:
+        ...
+
+    def fetchall(self) -> list[Any]:
+        ...
+
+
+class Connection(Protocol):
+    def execute(self, statement: str, parameters: Iterable[Any] = ()) -> Cursor:
+        ...
+
+    def commit(self) -> None:
+        ...
+
+    def rollback(self) -> None:
+        ...
+
+    def close(self) -> None:
+        ...
+
+
+class _PgConnection:
+    backend = "postgresql"
+
+    def __init__(self, conn: Any) -> None:
+        self._conn = conn
+
+    def execute(self, statement: str, parameters: Iterable[Any] = ()) -> Any:
+        sql = statement.replace("?", "%s")
+        return self._conn.execute(sql, tuple(parameters))
+
+    def commit(self) -> None:
+        self._conn.commit()
+
+    def rollback(self) -> None:
+        self._conn.rollback()
+
+    def close(self) -> None:
+        self._conn.close()
 
 
 SCHEMA = (
@@ -182,7 +231,22 @@ NUMERIC_FIELDS = {
 }
 
 
-def connect(db_path: str | Path) -> sqlite3.Connection:
+def is_postgres_url(target: str | Path) -> bool:
+    return isinstance(target, str) and target.startswith(POSTGRES_SCHEMES)
+
+
+def _connect_postgres(database_url: str, *, autocommit: bool = True) -> Connection:
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise RuntimeError(
+            "PostgreSQL support requires installing openpool with the postgres extra"
+        ) from exc
+    return _PgConnection(psycopg.connect(database_url, autocommit=autocommit, row_factory=dict_row))
+
+
+def _connect_sqlite(db_path: str | Path) -> Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     # check_same_thread=False: FastAPI runs sync dependency generators in a
@@ -197,9 +261,27 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def init_db(conn: sqlite3.Connection) -> None:
+def connect(target: str | Path, *, autocommit: bool = True) -> Connection:
+    if is_postgres_url(target):
+        return _connect_postgres(str(target), autocommit=autocommit)
+    if isinstance(target, str) and "://" in target:
+        raise ValueError("unsupported database URL scheme; use postgresql:// or postgres://")
+    if isinstance(target, str) and "=" in target:
+        raise ValueError(
+            "libpq keyword/value DSNs are not supported; use a postgresql:// URL"
+        )
+    return _connect_sqlite(target)
+
+
+def _schema_statement(conn: Connection, statement: str) -> str:
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        return REAL_TYPE_RE.sub("double precision", statement)
+    return statement
+
+
+def init_db(conn: Connection) -> None:
     for statement in SCHEMA:
-        conn.execute(statement)
+        conn.execute(_schema_statement(conn, statement))
     conn.commit()
 
 
@@ -222,12 +304,13 @@ def normalize_timestamp(value: str | None, timezone_name: str = "UTC") -> str:
     text = str(value).strip()
     if not text:
         return now_utc()
+    original = text
     if text.endswith("Z"):
-        return text
+        text = f"{text[:-1]}+00:00"
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError as exc:
-        raise ValueError(f"invalid timestamp: {text}") from exc
+        raise ValueError(f"invalid timestamp: {original}") from exc
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=ZoneInfo(validate_timezone_name(timezone_name)))
     return parsed.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -236,12 +319,16 @@ def normalize_timestamp(value: str | None, timezone_name: str = "UTC") -> str:
 def local_timestamp(value: str | None, timezone_name: str = "UTC") -> str | None:
     if not value:
         return None
-    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    return (
-        parsed.astimezone(ZoneInfo(validate_timezone_name(timezone_name)))
-        .replace(microsecond=0)
-        .isoformat()
-    )
+    text = str(value)
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return (
+            parsed.astimezone(ZoneInfo(validate_timezone_name(timezone_name)))
+            .replace(microsecond=0)
+            .isoformat()
+        )
+    except ValueError:
+        return text
 
 
 def validate_pool_id(pool_id: str) -> str:
@@ -250,13 +337,13 @@ def validate_pool_id(pool_id: str) -> str:
     return pool_id
 
 
-def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
+def row_to_dict(row: Any | None) -> dict[str, Any] | None:
     if row is None:
         return None
     return dict(row)
 
 
-def rows_to_dicts(rows: Iterable[sqlite3.Row]) -> list[dict[str, Any]]:
+def rows_to_dicts(rows: Iterable[Any]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
@@ -275,11 +362,21 @@ def generate_share_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-def _validate_share_token(data: dict[str, Any]) -> None:
-    enabled = data.get("share_enabled")
+def _share_enabled(value: Any) -> bool:
+    if isinstance(value, str):
+        return value in {"1", "true", "on"}
+    return value is True or value == 1
+
+
+def _validate_share_token(data: dict[str, Any], existing: dict[str, Any] | None = None) -> None:
+    enabled = data.get("share_enabled", existing.get("share_enabled") if existing else None)
     token = data.get("share_token")
-    if enabled in {1, "1", "true", "on"}:
+    existing_token = existing.get("share_token") if existing else None
+    if _share_enabled(enabled):
         if not token:
+            if existing_token:
+                data.pop("share_token", None)
+                return
             data["share_token"] = generate_share_token()
             return
         if len(str(token)) < MIN_SHARE_TOKEN_LENGTH:
@@ -304,13 +401,25 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
 
 
 def ensure_default_pool(
-    conn: sqlite3.Connection,
-    pool_id: str = "example",
+    conn: Connection,
+    pool_id: str = DEFAULT_POOL_ID,
     timezone_name: str = "UTC",
 ) -> dict[str, Any]:
     existing = get_pool(conn, pool_id)
     if existing:
         return existing
+
+    pools = list_pools(conn)
+    if len(pools) == 1:
+        adopted = pools[0]
+        LOGGER.warning(
+            "Configured default pool id %r is missing; using existing pool id %r "
+            "instead of creating a second default pool.",
+            pool_id,
+            adopted["id"],
+        )
+        return adopted
+
     timezone_name = validate_timezone_name(timezone_name)
     return create_pool(
         conn,
@@ -326,11 +435,11 @@ def ensure_default_pool(
     )
 
 
-def create_pool(conn: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, Any]:
+def create_pool(conn: Connection, payload: dict[str, Any]) -> dict[str, Any]:
     data = _clean_payload(payload, POOL_FIELDS)
     _validate_share_token(data)
     validate_timezone_name(data.get("timezone") or "UTC")
-    pool_id = validate_pool_id(str(data.get("id") or "example"))
+    pool_id = validate_pool_id(str(data.get("id") or DEFAULT_POOL_ID))
     timestamp = now_utc()
     row = {
         "id": pool_id,
@@ -363,12 +472,13 @@ def create_pool(conn: sqlite3.Connection, payload: dict[str, Any]) -> dict[str, 
     return get_pool(conn, pool_id) or row
 
 
-def update_pool(conn: sqlite3.Connection, pool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def update_pool(conn: Connection, pool_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     validate_pool_id(pool_id)
-    if not get_pool(conn, pool_id):
+    existing = get_pool(conn, pool_id)
+    if not existing:
         raise KeyError(pool_id)
     data = _clean_payload(payload, POOL_FIELDS - {"id"})
-    _validate_share_token(data)
+    _validate_share_token(data, existing)
     if "timezone" in data:
         validate_timezone_name(data.get("timezone") or "UTC")
     data["updated_at"] = now_utc()
@@ -381,11 +491,11 @@ def update_pool(conn: sqlite3.Connection, pool_id: str, payload: dict[str, Any])
     return get_pool(conn, pool_id) or {}
 
 
-def list_pools(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+def list_pools(conn: Connection) -> list[dict[str, Any]]:
     return rows_to_dicts(conn.execute("select * from pool_profiles order by name").fetchall())
 
 
-def get_pool(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any] | None:
+def get_pool(conn: Connection, pool_id: str) -> dict[str, Any] | None:
     validate_pool_id(pool_id)
     row = conn.execute("select * from pool_profiles where id = ?", (pool_id,)).fetchone()
     return row_to_dict(row)
@@ -405,7 +515,7 @@ def _computed_csi(reading: dict[str, Any]) -> float | None:
 
 
 def create_reading(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -451,13 +561,13 @@ def create_reading(
     return get_reading(conn, row["id"]) or row
 
 
-def get_reading(conn: sqlite3.Connection, reading_id: str) -> dict[str, Any] | None:
+def get_reading(conn: Connection, reading_id: str) -> dict[str, Any] | None:
     row = conn.execute("select * from test_readings where id = ?", (reading_id,)).fetchone()
     return row_to_dict(row)
 
 
 def update_reading(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     reading_id: str,
     payload: dict[str, Any],
@@ -494,7 +604,7 @@ def update_reading(
     return get_reading(conn, reading_id) or merged
 
 
-def delete_reading(conn: sqlite3.Connection, pool_id: str, reading_id: str) -> None:
+def delete_reading(conn: Connection, pool_id: str, reading_id: str) -> None:
     existing = get_reading(conn, reading_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(reading_id)
@@ -502,22 +612,36 @@ def delete_reading(conn: sqlite3.Connection, pool_id: str, reading_id: str) -> N
     conn.commit()
 
 
-def list_readings(conn: sqlite3.Connection, pool_id: str, limit: int = 100) -> list[dict[str, Any]]:
+def list_readings(
+    conn: Connection,
+    pool_id: str,
+    limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
+) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from test_readings
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and tested_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and tested_at < ?"
+        params.append(end_utc)
+    query += """
+        order by tested_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from test_readings
-            where pool_id = ?
-            order by tested_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 
-def latest_reading(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any] | None:
+def latest_reading(conn: Connection, pool_id: str) -> dict[str, Any] | None:
     validate_pool_id(pool_id)
     row = conn.execute(
         """
@@ -532,7 +656,7 @@ def latest_reading(conn: sqlite3.Connection, pool_id: str) -> dict[str, Any] | N
 
 
 def create_addition(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -572,13 +696,13 @@ def create_addition(
     return get_addition(conn, row["id"]) or row
 
 
-def get_addition(conn: sqlite3.Connection, addition_id: str) -> dict[str, Any] | None:
+def get_addition(conn: Connection, addition_id: str) -> dict[str, Any] | None:
     row = conn.execute("select * from chemical_additions where id = ?", (addition_id,)).fetchone()
     return row_to_dict(row)
 
 
 def update_addition(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     addition_id: str,
     payload: dict[str, Any],
@@ -612,7 +736,7 @@ def update_addition(
     return get_addition(conn, addition_id) or merged
 
 
-def delete_addition(conn: sqlite3.Connection, pool_id: str, addition_id: str) -> None:
+def delete_addition(conn: Connection, pool_id: str, addition_id: str) -> None:
     existing = get_addition(conn, addition_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(addition_id)
@@ -621,26 +745,36 @@ def delete_addition(conn: sqlite3.Connection, pool_id: str, addition_id: str) ->
 
 
 def list_additions(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from chemical_additions
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and added_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and added_at < ?"
+        params.append(end_utc)
+    query += """
+        order by added_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from chemical_additions
-            where pool_id = ?
-            order by added_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 
 def create_maintenance(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
@@ -671,32 +805,42 @@ def create_maintenance(
     return get_maintenance(conn, row["id"]) or row
 
 
-def get_maintenance(conn: sqlite3.Connection, event_id: str) -> dict[str, Any] | None:
+def get_maintenance(conn: Connection, event_id: str) -> dict[str, Any] | None:
     row = conn.execute("select * from maintenance_events where id = ?", (event_id,)).fetchone()
     return row_to_dict(row)
 
 
 def list_maintenance(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     limit: int = 100,
+    start_utc: str | None = None,
+    end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
     validate_pool_id(pool_id)
+    query = """
+        select * from maintenance_events
+        where pool_id = ?
+    """
+    params: list[Any] = [pool_id]
+    if start_utc:
+        query += " and event_at >= ?"
+        params.append(start_utc)
+    if end_utc:
+        query += " and event_at < ?"
+        params.append(end_utc)
+    query += """
+        order by event_at desc, created_at desc
+        limit ?
+    """
+    params.append(limit)
     return rows_to_dicts(
-        conn.execute(
-            """
-            select * from maintenance_events
-            where pool_id = ?
-            order by event_at desc, created_at desc
-            limit ?
-            """,
-            (pool_id, limit),
-        ).fetchall()
+        conn.execute(query, tuple(params)).fetchall()
     )
 
 
 def update_maintenance(
-    conn: sqlite3.Connection,
+    conn: Connection,
     pool_id: str,
     event_id: str,
     payload: dict[str, Any],
@@ -725,7 +869,7 @@ def update_maintenance(
     return get_maintenance(conn, event_id) or {**existing, **data}
 
 
-def delete_maintenance(conn: sqlite3.Connection, pool_id: str, event_id: str) -> None:
+def delete_maintenance(conn: Connection, pool_id: str, event_id: str) -> None:
     existing = get_maintenance(conn, event_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(event_id)

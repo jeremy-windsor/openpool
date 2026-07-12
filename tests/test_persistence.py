@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from openpool import db, services
@@ -24,6 +26,22 @@ def test_reading_persists_and_computes_tc(conn):
     assert latest["tc"] == 3.5
     # America/Phoenix is UTC-7; 09:15 local becomes 16:15 UTC.
     assert latest["tested_at"] == "2026-06-07T16:15:00Z"
+
+
+@pytest.mark.parametrize("tested_at", ["garbageZ", "2026-99-99T00:00Z"])
+def test_bad_z_timestamp_rejected_by_db(conn, tested_at):
+    with pytest.raises(ValueError, match="invalid timestamp"):
+        db.create_reading(conn, "example", {"tested_at": tested_at, "fc": 3})
+
+
+def test_z_timestamp_round_trips_canonically(conn):
+    reading = db.create_reading(
+        conn,
+        "example",
+        {"tested_at": "2026-06-01T12:00:00Z", "fc": 3},
+    )
+
+    assert reading["tested_at"] == "2026-06-01T12:00:00Z"
 
 
 def test_share_payload_excludes_notes_by_default(conn):
@@ -72,6 +90,17 @@ def test_share_token_generated_when_enabled_without_one(conn):
     assert not services.share_access_allowed(updated, None)
 
 
+def test_share_token_preserved_when_enabled_with_existing_token(conn):
+    db.update_pool(conn, "example", {"share_token": "read-only-token-123"})
+
+    enabled = db.update_pool(conn, "example", {"share_enabled": 1})
+    renamed = db.update_pool(conn, "example", {"share_enabled": 1, "name": "Renamed Pool"})
+
+    assert enabled["share_token"] == "read-only-token-123"
+    assert renamed["share_token"] == "read-only-token-123"
+    assert renamed["name"] == "Renamed Pool"
+
+
 def test_invalid_pool_id_rejected(conn):
     with pytest.raises(ValueError):
         db.get_pool(conn, "../nope")
@@ -85,6 +114,98 @@ def test_reading_schema_rejects_impossible_values():
 def test_default_pool_uses_configured_timezone(conn):
     pool = db.get_pool(conn, "example")
     assert pool["timezone"] == "America/Phoenix"
+
+
+def test_settings_default_pool_id_falls_back_to_pool(monkeypatch):
+    from openpool.config import get_settings
+
+    monkeypatch.delenv("OPENPOOL_DEFAULT_POOL_ID", raising=False)
+
+    assert get_settings().default_pool_id == "pool"
+
+
+def test_ensure_default_pool_creates_pool_by_default(tmp_path):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+
+        pool = db.ensure_default_pool(conn, timezone_name="America/Phoenix")
+
+        assert pool["id"] == "pool"
+        assert pool["timezone"] == "America/Phoenix"
+    finally:
+        conn.close()
+
+
+def test_create_pool_without_id_uses_pool(tmp_path):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+
+        pool = db.create_pool(conn, {})
+
+        assert pool["id"] == "pool"
+    finally:
+        conn.close()
+
+
+def test_ensure_default_pool_adopts_sole_existing_pool(tmp_path, caplog):
+    conn = db.connect(tmp_path / "openpool.sqlite")
+    try:
+        db.init_db(conn)
+        db.create_pool(conn, {"id": "example", "timezone": "America/Phoenix"})
+        caplog.set_level(logging.WARNING, logger="openpool.db")
+
+        pool = db.ensure_default_pool(conn, "pool", "UTC")
+
+        assert pool["id"] == "example"
+        assert [existing["id"] for existing in db.list_pools(conn)] == ["example"]
+        assert "using existing pool id 'example'" in caplog.text
+    finally:
+        conn.close()
+
+
+def test_startup_adopts_sole_existing_pool_for_pages(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    db_path = tmp_path / "openpool.sqlite"
+    conn = db.connect(db_path)
+    try:
+        db.init_db(conn)
+        db.create_pool(conn, {"id": "example", "timezone": "America/Phoenix"})
+    finally:
+        conn.close()
+
+    monkeypatch.delenv("OPENPOOL_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OPENPOOL_DEFAULT_POOL_ID", raising=False)
+    monkeypatch.setenv("OPENPOOL_DB", str(db_path))
+    monkeypatch.setenv("OPENPOOL_TIMEZONE", "America/Phoenix")
+
+    from openpool.main import create_app
+
+    with TestClient(create_app()) as test_client:
+        dashboard = test_client.get("/")
+        help_page = test_client.get("/help")
+        pools = test_client.get("/api/pools").json()
+
+    assert dashboard.status_code == 200
+    assert help_page.status_code == 200
+    assert "http://testserver/api/pools/example/readings" in help_page.text
+    assert [pool["id"] for pool in pools] == ["example"]
+
+
+def test_connect_rejects_libpq_keyword_dsn():
+    with pytest.raises(ValueError, match="libpq keyword/value DSNs are not supported"):
+        db.connect("host=localhost dbname=openpool")
+
+
+def test_database_url_rejects_malformed_value(monkeypatch):
+    from openpool.config import get_settings
+
+    monkeypatch.setenv("OPENPOOL_DATABASE_URL", "not-a-postgres-url")
+
+    with pytest.raises(ValueError, match="OPENPOOL_DATABASE_URL must be a postgresql:// URL"):
+        get_settings()
 
 
 def test_reading_tiles_classify_against_targets(conn):
@@ -128,3 +249,35 @@ def test_status_summary_levels(conn):
     db.create_reading(conn, "example", {"tested_at": "2026-06-02T08:00", "fc": 6, "cya": 40})
     good = db.latest_reading(conn, "example")
     assert services.status_summary(pool, good)["level"] == "good"
+    assert services.status_summary(pool, good)["text"] == "All readings in range"
+
+
+def test_status_summary_cautions_for_non_chlorine_out_of_range(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {
+        "fc": 6,
+        "cya": 40,
+        "ch": 900,
+        "csi": 0.7,
+    }
+
+    status = services.status_summary(pool, reading)
+
+    assert status["level"] == "caution"
+    assert status["text"] == "2 readings outside range"
+    assert "Balanced" not in status["text"]
+    assert "chlorine" not in status["text"].lower()
+
+
+def test_status_summary_uses_singular_outside_range_copy(conn):
+    pool = db.get_pool(conn, "example")
+    reading = {
+        "fc": 6,
+        "cya": 40,
+        "ch": 900,
+    }
+
+    status = services.status_summary(pool, reading)
+
+    assert status["level"] == "caution"
+    assert status["text"] == "1 reading outside range"

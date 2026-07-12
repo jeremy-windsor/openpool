@@ -13,9 +13,10 @@
       {% if tile.range %}<span class="tile-range">{{ tile.range_kind or "typical" }} {{ tile.range }}</span>{% endif %}
     </small>
     {% if tile.range and tile.value is not none %}
-    <span class="rangebar rangebar-{{ tile.state }}" aria-hidden="true">
-      <span class="rangebar-band"></span>
-      <span class="rangebar-dot"></span>
+    <span class="range-meter range-meter-{{ tile.state }}" aria-hidden="true">
+      <span class="range-segment range-segment-low"></span>
+      <span class="range-segment range-segment-ok"></span>
+      <span class="range-segment range-segment-high"></span>
     </span>
     {% endif %}
   </article>

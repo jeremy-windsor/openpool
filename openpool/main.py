@@ -18,14 +18,15 @@ PACKAGE_DIR = Path(__file__).parent
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    conn = db.connect(settings.db_path)
+    conn = db.connect(settings.connection_target)
     try:
         db.init_db(conn)
-        db.ensure_default_pool(
+        default_pool = db.ensure_default_pool(
             conn,
             settings.default_pool_id,
             settings.default_timezone,
         )
+        app.state.default_pool_id = default_pool["id"]
     finally:
         conn.close()
     yield

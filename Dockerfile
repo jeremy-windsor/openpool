@@ -17,7 +17,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY openpool ./openpool
 
-RUN pip install --no-cache-dir . \
+RUN pip install --no-cache-dir '.[postgres]' \
     && adduser --disabled-password --gecos "" --home /nonexistent openpool \
     && mkdir -p /data \
     && chown -R openpool:openpool /data

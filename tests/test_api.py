@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+import json
+import struct
+from datetime import date, timedelta
+from pathlib import Path
+
+STATIC_DIR = Path(__file__).parents[1] / "openpool" / "static"
+
+
+def _png_size(path: Path) -> tuple[int, int]:
+    data = path.read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert data[12:16] == b"IHDR"
+    return struct.unpack(">II", data[16:24])
+
 
 def test_health_ok(client):
     response = client.get("/api/health")
@@ -7,6 +21,12 @@ def test_health_ok(client):
     body = response.json()
     assert body["ok"] is True
     assert body["app"] == "openpool"
+
+
+def test_responses_include_nosniff_header(client):
+    response = client.get("/api/health")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
 
 
 def test_version_reports_build_metadata(client):
@@ -22,6 +42,125 @@ def test_dashboard_renders(client):
     assert "openpool" in response.text.lower()
 
 
+def test_app_shell_links_icons_and_manifest(client):
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'href="/static/favicon.svg"' in response.text
+    assert 'href="/static/icon-192.png"' in response.text
+    assert 'href="/static/apple-touch-icon.png"' in response.text
+    assert 'href="/static/manifest.webmanifest"' in response.text
+
+    favicon = STATIC_DIR / "favicon.svg"
+    assert favicon.exists()
+    assert "<svg" in favicon.read_text()
+
+    expected_pngs = {
+        "icon-192.png": (192, 192),
+        "icon-512.png": (512, 512),
+        "apple-touch-icon.png": (180, 180),
+    }
+    for filename, size in expected_pngs.items():
+        assert _png_size(STATIC_DIR / filename) == size
+
+    manifest = json.loads((STATIC_DIR / "manifest.webmanifest").read_text())
+    icons = {icon["src"]: icon for icon in manifest["icons"]}
+    assert icons["/static/icon-192.png"]["sizes"] == "192x192"
+    assert icons["/static/icon-192.png"]["type"] == "image/png"
+    assert icons["/static/icon-512.png"]["sizes"] == "512x512"
+    assert icons["/static/icon-512.png"]["type"] == "image/png"
+
+
+def test_dashboard_cautions_for_non_chlorine_out_of_range_readings(client):
+    created = client.post(
+        "/api/pools/example/readings",
+        json={"fc": 6, "cya": 40, "ch": 900, "csi": 0.7},
+    )
+    assert created.status_code == 201
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "2 readings outside range" in response.text
+    assert "Balanced - no action needed" not in response.text
+
+
+def test_help_page_links_generated_api_docs(client):
+    response = client.get("/help")
+
+    assert response.status_code == 200
+    assert 'href="/docs"' in response.text
+    assert 'href="/redoc"' in response.text
+    assert 'href="/openapi.json"' in response.text
+
+
+def test_help_page_uses_configured_default_pool_id(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.delenv("OPENPOOL_DATABASE_URL", raising=False)
+    monkeypatch.setenv("OPENPOOL_DB", str(tmp_path / "openpool.sqlite"))
+    monkeypatch.setenv("OPENPOOL_DEFAULT_POOL_ID", "configured-pool")
+    monkeypatch.setenv("OPENPOOL_TIMEZONE", "America/Phoenix")
+
+    from openpool.main import create_app
+
+    with TestClient(create_app()) as test_client:
+        response = test_client.get("/help")
+
+    assert response.status_code == 200
+    assert "http://testserver/api/pools/configured-pool/readings" in response.text
+
+
+def test_openapi_json_returns_expected_document(client):
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {"openapi", "info", "paths"} <= body.keys()
+    assert body["info"]["title"] == "openpool"
+    assert isinstance(body["paths"], dict)
+
+
+def test_openapi_paths_match_current_routes(client):
+    response = client.get("/openapi.json")
+
+    assert set(response.json()["paths"]) == {
+        "/",
+        "/additions/new",
+        "/additions/{addition_id}/delete",
+        "/additions/{addition_id}/edit",
+        "/api/health",
+        "/api/pools",
+        "/api/pools/{pool_id}",
+        "/api/pools/{pool_id}/additions",
+        "/api/pools/{pool_id}/additions/{addition_id}",
+        "/api/pools/{pool_id}/calculate",
+        "/api/pools/{pool_id}/export/additions.csv",
+        "/api/pools/{pool_id}/export/all.json",
+        "/api/pools/{pool_id}/export/maintenance.csv",
+        "/api/pools/{pool_id}/export/readings.csv",
+        "/api/pools/{pool_id}/maintenance",
+        "/api/pools/{pool_id}/maintenance/{event_id}",
+        "/api/pools/{pool_id}/readings",
+        "/api/pools/{pool_id}/readings/latest",
+        "/api/pools/{pool_id}/readings/{reading_id}",
+        "/api/pools/{pool_id}/share.json",
+        "/api/version",
+        "/calculator",
+        "/help",
+        "/history",
+        "/maintenance/new",
+        "/maintenance/{event_id}/delete",
+        "/maintenance/{event_id}/edit",
+        "/readings/new",
+        "/readings/{reading_id}/delete",
+        "/readings/{reading_id}/edit",
+        "/settings",
+        "/share/{pool_id}",
+        "/share/{pool_id}.json",
+    }
+
+
 def test_create_and_list_reading(client):
     created = client.post(
         "/api/pools/example/readings",
@@ -34,6 +173,44 @@ def test_create_and_list_reading(client):
     assert len(listed) == 1
     latest = client.get("/api/pools/example/readings/latest").json()
     assert latest["fc"] == 3
+
+
+def test_bad_z_timestamp_returns_400(client):
+    response = client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2026-99-99T00:00Z", "fc": 3},
+    )
+
+    assert response.status_code == 400
+    assert "invalid timestamp" in response.json()["detail"]
+
+
+def test_malformed_stored_timestamp_does_not_crash_pages(client):
+    from openpool import db
+    from openpool.config import get_settings
+
+    created = client.post(
+        "/api/pools/example/readings",
+        json={"tested_at": "2026-06-01T12:00:00Z", "fc": 3},
+    ).json()
+
+    conn = db.connect(get_settings().db_path)
+    try:
+        conn.execute(
+            "update test_readings set tested_at = ? where id = ?",
+            ("bad-timestampZ", created["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    dashboard = client.get("/")
+    history = client.get("/history")
+
+    assert dashboard.status_code == 200
+    assert history.status_code == 200
+    assert "bad-timestampZ" in dashboard.text
+    assert "bad-timestampZ" in history.text
 
 
 def test_calculate_liquid_chlorine(client):
@@ -69,6 +246,23 @@ def test_share_enabled_with_token(client):
     allowed = client.get("/share/example.json", params={"token": "read-only-token-123"})
     assert allowed.status_code == 200
     assert allowed.json()["pool"]["id"] == "example"
+
+
+def test_pool_update_preserves_existing_share_token(client):
+    client.put(
+        "/api/pools/example",
+        json={"share_enabled": True, "share_token": "read-only-token-123"},
+    )
+
+    updated = client.put(
+        "/api/pools/example",
+        json={"name": "Renamed Pool", "share_enabled": True},
+    )
+    allowed = client.get("/share/example.json", params={"token": "read-only-token-123"})
+
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Renamed Pool"
+    assert allowed.status_code == 200
 
 
 def test_share_response_never_includes_token(client):
@@ -421,6 +615,27 @@ def test_calculator_page_renders_new_goals(client):
     assert "Also changes" in response.text
 
 
+def test_calculator_page_accepts_blank_optional_numeric_query_fields(client):
+    response = client.get(
+        "/calculator?goal=raise_fc&product=liquid_chlorine&current=6&target=12"
+        "&ta=&cya=&borates=&cell_lbs_per_day=&pump_hours=&pool_gallons=18500&strength=12"
+    )
+
+    assert response.status_code == 200
+    assert "Add 118.4 fl oz" in response.text
+    assert "liquid chlorine" in response.text
+
+
+def test_calculator_page_shows_inline_error_for_invalid_numeric_query(client):
+    response = client.get(
+        "/calculator",
+        params={"goal": "raise_fc", "current": "six", "target": "12"},
+    )
+
+    assert response.status_code == 200
+    assert "current must be a number" in response.text
+
+
 def test_calculator_page_shows_inline_error_instead_of_400(client):
     response = client.get(
         "/calculator",
@@ -428,6 +643,14 @@ def test_calculator_page_shows_inline_error_instead_of_400(client):
     )
     assert response.status_code == 200
     assert "lower_ph needs: ta" in response.text
+
+
+def test_calculator_page_without_params_renders_form(client):
+    response = client.get("/calculator")
+
+    assert response.status_code == 200
+    assert "<h1>Calculator</h1>" in response.text
+    assert "dose-card" not in response.text
 
 
 def test_history_filters_by_record_type_and_date(client):
@@ -455,3 +678,63 @@ def test_history_filters_by_record_type_and_date(client):
     )
     assert response.status_code == 200
     assert "liquid chlorine" in response.text
+
+
+def test_history_date_range_finds_rows_older_than_newest_100(client):
+    from openpool import db
+    from openpool.config import get_settings
+
+    conn = db.connect(get_settings().db_path)
+    try:
+        for offset in range(120):
+            day = date(2026, 7, 1) + timedelta(days=offset)
+            db.create_reading(
+                conn,
+                "example",
+                {"tested_at": f"{day.isoformat()}T12:00:00Z", "fc": 10 + offset},
+            )
+        db.create_reading(
+            conn,
+            "example",
+            {"tested_at": "2026-03-10T12:00:00Z", "fc": 1.23},
+        )
+        db.create_reading(
+            conn,
+            "example",
+            {"tested_at": "2026-03-11T12:00:00Z", "fc": 2.34},
+        )
+    finally:
+        conn.close()
+
+    response = client.get(
+        "/history",
+        params={"record": "readings", "start": "2026-03-10", "end": "2026-03-11"},
+    )
+
+    assert response.status_code == 200
+    assert "1.23" in response.text
+    assert "2.34" in response.text
+
+
+def test_history_date_range_uses_pool_local_inclusive_days(client):
+    for tested_at, fc in [
+        ("2026-06-01T06:59:59Z", 1.01),
+        ("2026-06-01T07:00:00Z", 2.02),
+        ("2026-06-02T06:59:59Z", 3.03),
+        ("2026-06-02T07:00:00Z", 4.04),
+    ]:
+        client.post(
+            "/api/pools/example/readings",
+            json={"tested_at": tested_at, "fc": fc},
+        )
+
+    response = client.get(
+        "/history",
+        params={"record": "readings", "start": "2026-06-01", "end": "2026-06-01"},
+    )
+
+    assert response.status_code == 200
+    assert "2.02" in response.text
+    assert "3.03" in response.text
+    assert "1.01" not in response.text
+    assert "4.04" not in response.text

@@ -1,5 +1,16 @@
 # OpenPool Next Steps
 
+
+## #1 Security Remediation — DeepSec scan (2026-06-28)
+
+DeepSec found real security work that should preempt product features. Fix in this order:
+
+1. **Add real authentication to private routes** (`openpool/routers/api.py`, `openpool/routers/export.py`, `openpool/routers/pages.py`). `Depends(get_db)` only opens SQLite; it is not access control. Keep token-gated share routes separate from the authenticated management API.
+2. **Protect settings/share-token management** (`openpool/routers/pages.py`). Settings currently exposes and permits changing `share_token`; require admin auth, mask tokens, add explicit rotate/regenerate, and prefer storing token hashes.
+3. **Tighten GitHub Actions permissions** (`.github/workflows/docker.yml`). Move permissions to job level; PR/test job gets `contents: read` and checkout `persist-credentials: false`; publish job alone gets `packages: write`.
+4. **Pin CI actions and container supply chain** (`.github/workflows/docker.yml`, `Dockerfile`). Pin third-party actions to full SHAs, pin `python:3.13-slim` by digest, and install Docker deps from a committed lock/hash-pinned requirements export.
+5. **Fix cross-pool integrity** (`openpool/db.py`). Reject `linked_reading_id` unless the reading belongs to the same `pool_id`; add a composite DB constraint if practical.
+
 Date: 2026-06-07
 
 This is the handoff note for the next implementation chat. The repo has moved

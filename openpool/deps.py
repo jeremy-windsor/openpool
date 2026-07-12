@@ -1,22 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from sqlite3 import Connection
 
 from openpool import db
 from openpool.config import get_settings
 
 
-def get_db() -> Iterator[Connection]:
+def get_db() -> Iterator[db.Connection]:
     settings = get_settings()
-    conn = db.connect(settings.db_path)
+    conn = db.connect(settings.connection_target)
     try:
-        db.init_db(conn)
-        db.ensure_default_pool(
-            conn,
-            settings.default_pool_id,
-            settings.default_timezone,
-        )
         yield conn
     finally:
         conn.close()
