@@ -7,6 +7,8 @@ from openpool.chemistry.acid_base import (
     dose_muriatic_acid_for_ph,
     dose_soda_ash_for_ph,
 )
+from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
+from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
 from openpool.chemistry.chlorine import dose_dry_chlorine_for_fc, dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
 from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
@@ -169,6 +171,88 @@ def test_unusual_chlorine_strengths_warn_without_refusing():
 
     assert any("typically 3-15%" in warning for warning in liquid.warnings)
     assert any("typically 35-78%" in warning for warning in cal_hypo.warnings)
+
+
+def test_gate_p_strength_boundaries_use_percent_only(reference_examples):
+    cases = reference_examples["gate_p_critical"]["strength_boundaries_percent"]
+
+    assert normalize_percent(cases["accepted"]) == 1
+    with pytest.raises(ValueError):
+        normalize_percent(cases["ambiguous_fraction_refused"])
+    with pytest.raises(ValueError):
+        normalize_percent(cases["over_100_refused"])
+
+
+def test_gate_p_acid_strength_ratio_is_independently_derived(reference_examples):
+    case = reference_examples["gate_p_critical"]["acid_strength_ratio"]
+    strong = dose_muriatic_acid_for_ph(
+        case["pool_gallons"], case["current_ph"], case["target_ph"], case["ta"],
+        cya=case["cya"], acid_percent=case["strong_percent"],
+    )
+    weak = dose_muriatic_acid_for_ph(
+        case["pool_gallons"], case["current_ph"], case["target_ph"], case["ta"],
+        cya=case["cya"], acid_percent=case["weak_percent"],
+    )
+
+    assert _within(
+        weak.amount / strong.amount,
+        case["expected_weak_to_strong_volume_ratio"],
+        case["tolerance_percent"],
+    )
+
+
+def test_gate_p_above_chart_cya_cases_refuse_targets(reference_examples):
+    for case in reference_examples["gate_p_critical"]["above_chart_cya"]:
+        with pytest.raises(ValueError, match=r"supported .* chart"):
+            fc_cya_targets(case["cya"], case["sanitizer"])
+
+
+def test_gate_p_dilution_fixture_and_zero_refusal(reference_examples):
+    case = reference_examples["gate_p_critical"]["dilution"]
+    dose = estimate_drain_for_dilution(
+        case["pool_gallons"], case["current_ppm"], case["positive_target_ppm"]
+    )
+
+    assert dose.amount == pytest.approx(case["expected_gallons"])
+    retained_ppm = case["current_ppm"] * (1 - dose.amount / case["pool_gallons"])
+    assert retained_ppm == pytest.approx(case["positive_target_ppm"])
+    with pytest.raises(ValueError, match="does not prescribe a full drain"):
+        estimate_drain_for_dilution(
+            case["pool_gallons"], case["current_ppm"], case["zero_target_refused"]
+        )
+
+
+def test_acid_and_soda_ash_properties():
+    acid_small = dose_muriatic_acid_for_ph(10_000, 7.8, 7.6, 100, cya=40)
+    acid_large = dose_muriatic_acid_for_ph(10_000, 7.8, 7.4, 100, cya=40)
+    acid_double_volume = dose_muriatic_acid_for_ph(20_000, 7.8, 7.6, 100, cya=40)
+    base_small = dose_soda_ash_for_ph(10_000, 7.2, 7.4, 70, cya=40)
+    base_large = dose_soda_ash_for_ph(10_000, 7.2, 7.6, 70, cya=40)
+    base_double_volume = dose_soda_ash_for_ph(20_000, 7.2, 7.4, 70, cya=40)
+
+    assert acid_large.amount >= acid_small.amount
+    assert acid_double_volume.amount == pytest.approx(2 * acid_small.amount, rel=0.02)
+    assert acid_small.effects["ta"] < 0
+    assert base_large.amount >= base_small.amount
+    assert base_double_volume.amount == pytest.approx(2 * base_small.amount, rel=0.02)
+    assert base_small.effects["ta"] > 0
+
+
+@pytest.mark.parametrize(
+    "dose_for, delta",
+    [
+        (lambda volume, delta: dose_liquid_chlorine_for_fc(volume, 1, 1 + delta), 10),
+        (lambda volume, delta: dose_dry_stabilizer_for_cya(volume, 20, 20 + delta), 10),
+        (lambda volume, delta: dose_salt_for_ppm(volume, 2000, 2000 + delta), 1000),
+        (lambda volume, delta: dose_calcium_chloride_for_ch(volume, 200, 200 + delta), 10),
+        (lambda volume, delta: dose_baking_soda_for_ta(volume, 60, 60 + delta), 10),
+    ],
+)
+def test_mass_ppm_doses_are_linear_in_volume_and_delta(dose_for, delta):
+    baseline = dose_for(10_000, delta).amount
+
+    assert dose_for(20_000, delta).amount == pytest.approx(2 * baseline, rel=0.02)
+    assert dose_for(10_000, 2 * delta).amount == pytest.approx(2 * baseline, rel=0.02)
 
 
 def test_ppm_to_pounds_identity():

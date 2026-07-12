@@ -31,6 +31,18 @@ TYPICAL_RANGES: dict[str, tuple[float | None, float | None]] = {
     "csi": (-0.3, 0.3),
 }
 FRESH_READING_MAX_AGE = timedelta(hours=12)
+GOAL_VALUE_BOUNDS: dict[str, tuple[float, float]] = {
+    "raise_fc": (0, 100),
+    "slam_fc": (0, 100),
+    "raise_cya": (0, 500),
+    "raise_salt": (0, 50_000),
+    "raise_ch": (0, 2_000),
+    "raise_ta": (0, 2_000),
+    "lower_ph": (0, 14),
+    "raise_ph": (0, 14),
+    "lower_by_dilution": (0, 50_000),
+    "swg_runtime": (0, 100),
+}
 
 
 def humanize_number(value: Any, grouping: bool = True) -> str:
@@ -170,6 +182,13 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
     for name, value in numeric_values.items():
         if not isfinite(value):
             raise ValueError(f"{name} must be a finite number")
+    if not 0 < pool_gallons <= 1_000_000:
+        raise ValueError("pool_gallons must be greater than 0 and at most 1000000")
+    low, high = GOAL_VALUE_BOUNDS.get(goal, (0, 50_000))
+    for name in ("current", "target"):
+        value = values.get(name)
+        if value is not None and not low <= float(value) <= high:
+            raise ValueError(f"{name} for {goal} must be between {low:g} and {high:g}")
     extra: dict[str, Any] = {}
 
     if goal == "raise_fc":

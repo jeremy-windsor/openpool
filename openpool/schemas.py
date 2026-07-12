@@ -14,7 +14,7 @@ class PoolIn(BaseModel):
     spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
     surface: str = "plaster"
     sanitizer: str = "liquid_chlorine"
-    unit_system: Literal["us", "metric"] = "us"
+    unit_system: Literal["us"] = "us"
     timezone: str = "UTC"
     default_chlorine_percent: float = Field(10.0, ge=1, le=100)
     default_cya_target: float = Field(40.0, ge=0, le=500)
@@ -35,7 +35,7 @@ class PoolUpdate(BaseModel):
     spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
     surface: str | None = None
     sanitizer: str | None = None
-    unit_system: Literal["us", "metric"] | None = None
+    unit_system: Literal["us"] | None = None
     timezone: str | None = None
     default_chlorine_percent: float | None = Field(None, ge=1, le=100)
     default_cya_target: float | None = Field(None, ge=0, le=500)
@@ -125,12 +125,12 @@ class CalculationIn(BaseModel):
     ]
     current: float | None = Field(None, ge=0)
     target: float | None = Field(None, ge=0)
-    pool_gallons: float | None = Field(None, gt=0)
+    pool_gallons: float | None = Field(None, gt=0, le=1_000_000)
     strength: float | None = Field(None, ge=1, le=100)
     product: str | None = None
-    ta: float | None = Field(None, ge=0)
-    cya: float | None = Field(None, ge=0)
-    borates: float | None = Field(None, ge=0)
+    ta: float | None = Field(None, ge=0, le=2_000)
+    cya: float | None = Field(None, ge=0, le=500)
+    borates: float | None = Field(None, ge=0, le=200)
     cell_lbs_per_day: float | None = Field(None, gt=0)
     pump_hours: float | None = Field(None, gt=0, le=24)
 

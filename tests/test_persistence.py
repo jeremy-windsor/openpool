@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from openpool import db, services
-from openpool.schemas import ReadingIn
+from openpool.schemas import AdditionIn, CalculationIn, PoolIn, ReadingIn, validate_model
 
 
 def test_reading_persists_and_computes_tc(conn):
@@ -113,6 +113,59 @@ def test_invalid_pool_id_rejected(conn):
 def test_reading_schema_rejects_impossible_values():
     with pytest.raises(ValueError):
         ReadingIn(fc=-1, ph=20)
+
+
+@pytest.mark.parametrize(
+    "model_class, base, field, valid_low, valid_high, invalid_low, invalid_high",
+    [
+        (ReadingIn, {}, "fc", 0, 100, -1, 101),
+        (ReadingIn, {}, "cc", 0, 100, -1, 101),
+        (ReadingIn, {}, "ph", 0, 14, -1, 15),
+        (ReadingIn, {}, "ta", 0, 2_000, -1, 2_001),
+        (ReadingIn, {}, "ch", 0, 2_000, -1, 2_001),
+        (ReadingIn, {}, "cya", 0, 500, -1, 501),
+        (ReadingIn, {}, "salt", 0, 50_000, -1, 50_001),
+        (ReadingIn, {}, "borates", 0, 200, -1, 201),
+        (ReadingIn, {}, "water_temp_f", 32, 120, 31, 121),
+        (ReadingIn, {}, "filter_pressure", 0, 100, -1, 101),
+        (PoolIn, {}, "volume_gallons", 1, 1_000_000, 0, 1_000_001),
+        (PoolIn, {}, "spa_volume_gallons", 1, 1_000_000, 0, 1_000_001),
+        (PoolIn, {}, "default_chlorine_percent", 1, 100, 0.5, 101),
+        (PoolIn, {}, "default_cya_target", 0, 500, -1, 501),
+        (PoolIn, {}, "default_salt_target", 0, 50_000, -1, 50_001),
+        (
+            AdditionIn,
+            {"chemical": "salt", "amount": 1, "unit": "lb"},
+            "strength_percent",
+            1,
+            100,
+            0.5,
+            101,
+        ),
+        (
+            AdditionIn,
+            {"chemical": "salt", "amount": 1, "unit": "lb"},
+            "amount",
+            1,
+            100_000,
+            0,
+            100_001,
+        ),
+        (CalculationIn, {"goal": "raise_fc"}, "pool_gallons", 1, 1_000_000, 0, 1_000_001),
+        (CalculationIn, {"goal": "raise_fc"}, "strength", 1, 100, 0.5, 101),
+        (CalculationIn, {"goal": "lower_ph"}, "ta", 0, 2_000, -1, 2_001),
+        (CalculationIn, {"goal": "slam_fc"}, "cya", 0, 500, -1, 501),
+        (CalculationIn, {"goal": "lower_ph"}, "borates", 0, 200, -1, 201),
+    ],
+)
+def test_documented_hard_bound_edges(
+    model_class, base, field, valid_low, valid_high, invalid_low, invalid_high
+):
+    validate_model(model_class, {**base, field: valid_low})
+    validate_model(model_class, {**base, field: valid_high})
+    for invalid in (invalid_low, invalid_high):
+        with pytest.raises(ValueError, match=field):
+            validate_model(model_class, {**base, field: invalid})
 
 
 def test_client_cannot_supply_server_owned_reading_values():
@@ -258,6 +311,36 @@ def test_upgrade_refuses_to_destroy_out_of_bounds_legacy_data(tmp_path):
         conn.close()
 
     assert preserved == 101
+
+
+def test_upgrade_removes_unimplemented_metric_preference(tmp_path):
+    path = tmp_path / "legacy-metric.sqlite"
+    legacy = sqlite3.connect(path)
+    try:
+        for statement in db.SCHEMA:
+            legacy.execute(statement)
+        legacy.execute(
+            """
+            insert into pool_profiles (
+              id, name, volume_gallons, unit_system, created_at, updated_at
+            ) values ('legacy', 'Legacy', 10000, 'metric', '2026-01-01Z', '2026-01-01Z')
+            """
+        )
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = db.connect(path)
+    try:
+        db.init_db(conn)
+        pool = db.get_pool(conn, "legacy")
+        with pytest.raises(sqlite3.IntegrityError, match="metric display"):
+            conn.execute("update pool_profiles set unit_system = 'metric' where id = 'legacy'")
+        conn.rollback()
+    finally:
+        conn.close()
+
+    assert pool["unit_system"] == "us"
 
 
 def test_default_pool_uses_configured_timezone(conn):
@@ -426,6 +509,26 @@ def test_recommendation_requires_fresh_same_day_reading(conn):
     assert stale[0]["kind"] == "retest"
     assert "more than 12 hours old" in stale[0]["why"]
     assert "dose" not in stale[0]
+
+
+def test_gate_p_freshness_seconds_inside_and_outside(reference_examples, conn):
+    case = reference_examples["gate_p_critical"]["freshness"]
+    pool = db.get_pool(conn, "example")
+    tested_at = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    reading = {"tested_at": tested_at.isoformat().replace("+00:00", "Z"), "fc": 1, "cya": 40}
+
+    inside = services.recommended_actions(
+        pool, reading, now=tested_at + timedelta(seconds=case["inside_seconds"])
+    )
+    outside = services.recommended_actions(
+        pool, reading, now=tested_at + timedelta(seconds=case["outside_seconds"])
+    )
+
+    assert case["max_age_hours"] == 12
+    assert timedelta(hours=case["max_age_hours"]) == services.FRESH_READING_MAX_AGE
+    assert inside[0]["kind"] == "chlorine"
+    assert outside[0]["kind"] == "retest"
+    assert "more than 12 hours old" in outside[0]["why"]
 
 
 def test_recommendation_requires_current_pool_local_day(conn):

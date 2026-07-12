@@ -37,6 +37,30 @@ def _empty_to_none(data: dict[str, str]) -> dict[str, str | None]:
     return {key: (None if value == "" else value) for key, value in data.items()}
 
 
+def _validation_errors(
+    exc: ValueError, fallback_field: str | None = None
+) -> dict[str, list[str]]:
+    errors: dict[str, list[str]] = {}
+    structured = getattr(exc, "errors", None)
+    if callable(structured):
+        for item in structured():
+            location = item.get("loc") or ("__all__",)
+            field = str(location[-1])
+            errors.setdefault(field, []).append(str(item.get("msg") or exc))
+        if errors:
+            return errors
+    errors[fallback_field or "__all__"] = [str(exc)]
+    return errors
+
+
+def _submitted_record(
+    form: dict[str, str | None], timestamp_field: str
+) -> dict[str, str | None]:
+    record = dict(form)
+    record[f"{timestamp_field}_local"] = form.get(timestamp_field)
+    return record
+
+
 def _pool_id(request: Request | None = None) -> str:
     configured = get_settings().default_pool_id
     if request is None:
@@ -87,7 +111,17 @@ async def save_reading(request: Request, conn: db.Connection = Depends(get_db)):
         reading = validate_model(ReadingIn, form)
         db.create_reading(conn, pool_id, dump_model(reading, exclude_none=True))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="reading_form.html",
+            context={
+                "title": "New reading",
+                "pool_id": pool_id,
+                "reading": _submitted_record(form, "tested_at"),
+                "errors": _validation_errors(exc, "tested_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/", status_code=303)
 
 
@@ -143,7 +177,18 @@ async def save_reading_edit(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="reading_form.html",
+            context={
+                "title": "Edit reading",
+                "form_title": "Edit Reading",
+                "form_action": f"/readings/{reading_id}/edit",
+                "reading": _submitted_record(form, "tested_at"),
+                "errors": _validation_errors(exc, "tested_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/history", status_code=303)
 
 
@@ -178,7 +223,16 @@ async def save_addition(request: Request, conn: db.Connection = Depends(get_db))
         addition = validate_model(AdditionIn, form)
         db.create_addition(conn, pool_id, dump_model(addition, exclude_none=True))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="addition_form.html",
+            context={
+                "title": "New addition",
+                "addition": _submitted_record(form, "added_at"),
+                "errors": _validation_errors(exc, "added_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/history", status_code=303)
 
 
@@ -221,7 +275,18 @@ async def save_addition_edit(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="addition_form.html",
+            context={
+                "title": "Edit addition",
+                "form_title": "Edit Addition",
+                "form_action": f"/additions/{addition_id}/edit",
+                "addition": _submitted_record(form, "added_at"),
+                "errors": _validation_errors(exc, "added_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/history", status_code=303)
 
 
@@ -256,7 +321,16 @@ async def save_maintenance(request: Request, conn: db.Connection = Depends(get_d
         event = validate_model(MaintenanceIn, form)
         db.create_maintenance(conn, pool_id, dump_model(event, exclude_none=True))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="maintenance_form.html",
+            context={
+                "title": "Log maintenance",
+                "event": _submitted_record(form, "event_at"),
+                "errors": _validation_errors(exc, "event_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/history", status_code=303)
 
 
@@ -297,7 +371,18 @@ async def save_maintenance_edit(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return templates.TemplateResponse(
+            request=request,
+            name="maintenance_form.html",
+            context={
+                "title": "Edit maintenance",
+                "form_title": "Edit Maintenance",
+                "form_action": f"/maintenance/{event_id}/edit",
+                "event": _submitted_record(form, "event_at"),
+                "errors": _validation_errors(exc, "event_at"),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/history", status_code=303)
 
 
@@ -463,6 +548,8 @@ def calculator(
 def settings_page(request: Request, conn: db.Connection = Depends(get_db)):
     pool_id = _pool_id(request)
     pool = db.get_pool(conn, pool_id)
+    if not pool:
+        raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
     return templates.TemplateResponse(
         request=request,
         name="settings.html",
@@ -474,15 +561,36 @@ def settings_page(request: Request, conn: db.Connection = Depends(get_db)):
 async def save_settings(request: Request, conn: db.Connection = Depends(get_db)):
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
+    pool = db.get_pool(conn, pool_id)
+    if not pool:
+        raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
     try:
-        pool = db.get_pool(conn, pool_id)
-        if not pool:
-            raise KeyError(pool_id)
         current = {key: pool.get(key) for key in model_field_names(PoolIn)}
         settings = validate_model(PoolIn, {**current, **form})
         db.update_pool(conn, pool_id, dump_model(settings, exclude_none=True))
-    except (KeyError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}") from exc
+    except ValueError as exc:
+        submitted = {**pool, **form}
+        submitted["share_enabled"] = form.get("share_enabled") == "1"
+        message = str(exc).lower()
+        fallback_field = (
+            "timezone"
+            if "timezone" in message
+            else "share_token"
+            if "share token" in message
+            else None
+        )
+        return templates.TemplateResponse(
+            request=request,
+            name="settings.html",
+            context={
+                "title": "Settings",
+                "pool": submitted,
+                "errors": _validation_errors(exc, fallback_field),
+            },
+            status_code=422,
+        )
     return RedirectResponse("/settings", status_code=303)
 
 

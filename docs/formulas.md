@@ -3,6 +3,37 @@
 Every formula in `openpool` has explicit inputs, units, assumptions, and tests.
 The app owns these calculations; it does not copy proprietary calculator code.
 
+## Gate P Critical Safety Derivations
+
+These fixtures pin the five dosing defects that could have produced a wrong or
+stale recommendation. They are calculated independently in
+`tests/fixtures/public_reference_examples.json`; the test suite compares the
+implementation to those values rather than regenerating expectations from
+OpenPool constants.
+
+- **Acid strength.** A published HASA sheet identifies 31.45% HCl and density
+  1.16 g/mL. The reduced-strength product is modeled at 14.5% and 1.07 g/mL.
+  For equal HCl mass, solution volume is inverse to `mass_fraction * density`,
+  so the weak/strong volume ratio is
+  `(0.3145 * 1.16) / (0.145 * 1.07) = 2.3514`. The fixture allows 2% for
+  product/rounding variation. Source: [HASA Muriatic Acid safety sheet](https://www.integritysafety.com/wp-content/uploads/2022/02/MuriaticHydrochloric.pdf).
+- **Percent semantics.** Label strength is entered as a percent: `1` means 1%,
+  while `0.5` is rejected as ambiguous fractional notation and `101` is
+  physically impossible.
+- **High CYA.** OpenPool refuses FC/SLAM numbers beyond its finite chart instead
+  of extrapolating or clamping. This is deliberately conservative: CDC notes
+  that cyanuric acid slows chlorine disinfection and that higher FC is needed
+  when CYA is present. Source: [CDC home pool treatment guidance](https://www.cdc.gov/healthy-swimming/about/home-pool-and-hot-tub-water-treatment-and-testing.html).
+- **Dilution.** Conservation of mass gives retained fraction
+  `target / current`; drain-then-refill fraction is `1 - target/current`.
+  Therefore 100 ppm to 50 ppm in 20,000 gallons replaces 10,000 gallons. A
+  zero target is refused because the simple model would prescribe a full drain
+  without checking groundwater, structure, or local constraints.
+- **Freshness.** A dosing recommendation requires a reading no more than 12
+  hours old and from the current pool-local calendar day. Tests pin one second
+  inside and outside the age boundary plus a young reading across local
+  midnight.
+
 ## Liquid Chlorine FC Raise
 
 ```yaml
@@ -304,4 +335,3 @@ validation:
 CYA readings are rounded up to the next supported bucket. This is conservative:
 the app should not recommend a lower FC target because a CYA test landed between
 chart rows.
-

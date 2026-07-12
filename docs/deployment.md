@@ -2,11 +2,10 @@
 
 `openpool` is designed for local-first Docker deployment.
 
-> **Current release posture:** use OpenPool as a development logbook only.
-> Do not follow its dosing recommendations on a real pool until Gate P in
-> `plans/hardening-and-pilot-readiness-plan.md` passes. Until authentication
-> exists, recommendation-following access is limited to loopback, an SSH
-> tunnel, or a private VPN.
+> **Current release posture:** Gate P is implemented and verified for a
+> supervised, single-owner pilot. Recommendation-following access is limited
+> to an immutable reviewed image over loopback, an SSH tunnel, or a private
+> VPN. Public/LAN-wide write access remains blocked until authentication exists.
 
 ```bash
 docker compose up --build
@@ -178,9 +177,9 @@ blocked until Gate X.
 
 ## Development And Pilot Checklist
 
-The recommendation-following pilot is suspended until Gate P passes. Logging
-may continue, but calculate real doses from the product label and an independent
-reference, then log what was actually added.
+Gate P implementation evidence is recorded in `plans/project-tracker.md`.
+Each deployment still has to complete the operator checks below; passing the
+software gate does not verify a pool volume, a chemical label, or a network.
 
 For logging-only development:
 
@@ -194,7 +193,7 @@ For logging-only development:
 
 Before recommendation-following pilot use:
 
-- [ ] Gate P is recorded complete in `plans/project-tracker.md`.
+- [x] Gate P is recorded complete in `plans/project-tracker.md`.
 - [ ] Pin an immutable `sha-<short-git-sha>` image; disable unattended updates.
 - [ ] Confirm `/api/version.buildSha` matches the pinned commit.
 - [ ] Bind to `127.0.0.1` and use loopback, SSH tunnel, or private VPN access.

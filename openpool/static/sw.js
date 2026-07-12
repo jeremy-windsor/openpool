@@ -1,5 +1,11 @@
-const CACHE_NAME = "openpool-shell-v4";
-const SHELL = ["/static/tokens.css", "/static/app.css", "/static/app.js"];
+const CACHE_NAME = "openpool-shell-v5";
+const SHELL = [
+  "/static/tokens.css",
+  "/static/app.css",
+  "/static/app.js",
+  "/static/offline.html",
+];
+const SHELL_PATHS = new Set(SHELL);
 
 self.addEventListener("install", (event) => {
   // Activate the new worker immediately instead of waiting for every tab to
@@ -25,14 +31,18 @@ self.addEventListener("fetch", (event) => {
   }
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() =>
+      fetch(event.request).catch(async () =>
+        (await caches.match("/static/offline.html")) ||
         new Response(
-          "<!doctype html><title>openpool offline</title><main><h1>Offline</h1><p>Dashboard chemistry is not shown from a stale cache. Reconnect and refresh before dosing.</p></main>",
+          "<!doctype html><title>Offline - openpool</title><h1>openpool is offline</h1><p>No dosing guidance is available offline.</p>",
           { status: 503, headers: { "Content-Type": "text/html" } },
         ),
       ),
     );
     return;
   }
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  const url = new URL(event.request.url);
+  if (url.origin === self.location.origin && SHELL_PATHS.has(url.pathname)) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  }
 });

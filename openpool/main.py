@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from openpool import __version__, db
@@ -40,6 +41,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker() -> FileResponse:
+        return FileResponse(
+            PACKAGE_DIR / "static" / "sw.js",
+            media_type="text/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
+
     app.middleware("http")(reject_cross_origin_writes)
     app.include_router(api.router)
     app.include_router(export.router)

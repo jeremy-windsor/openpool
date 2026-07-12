@@ -222,6 +222,13 @@ h1 {
   color: var(--danger-700);
 }
 
+.field-error {
+  color: var(--danger-700);
+  display: block;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
 .hero-status .hero-body h1,
 .hero-status .status-label {
   color: var(--text);

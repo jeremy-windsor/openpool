@@ -28,4 +28,7 @@ async def reject_cross_origin_writes(request: Request, call_next):
             return _add_security_headers(
                 PlainTextResponse("cross-origin writes are not allowed", status_code=403)
             )
-    return _add_security_headers(await call_next(request))
+    response = _add_security_headers(await call_next(request))
+    if not request.url.path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    return response

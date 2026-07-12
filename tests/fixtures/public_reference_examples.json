@@ -240,5 +240,45 @@
       "expected_ppm_per_day_at_100": 16.8,
       "tolerance_pct": 3
     }
-  ]
+  ],
+  "gate_p_critical": {
+    "source_note": "Independent boundary fixtures for D1-D5. Product concentration and density come from published SDS data; dilution is conservation of mass; freshness and chart limits are explicit OpenPool safety contracts.",
+    "acid_strength_ratio": {
+      "pool_gallons": 10000,
+      "current_ph": 7.8,
+      "target_ph": 7.5,
+      "ta": 100,
+      "cya": 40,
+      "strong_percent": 31.45,
+      "strong_density_g_ml": 1.16,
+      "weak_percent": 14.5,
+      "weak_density_g_ml": 1.07,
+      "expected_weak_to_strong_volume_ratio": 2.3514,
+      "tolerance_percent": 2,
+      "derivation": "For equal HCl mass, volume is inverse to mass_fraction * density: (0.3145 * 1.16) / (0.145 * 1.07) = 2.3514."
+    },
+    "strength_boundaries_percent": {
+      "accepted": 1,
+      "ambiguous_fraction_refused": 0.5,
+      "over_100_refused": 101
+    },
+    "above_chart_cya": [
+      {"sanitizer": "liquid_chlorine", "cya": 110},
+      {"sanitizer": "swg", "cya": 90}
+    ],
+    "dilution": {
+      "pool_gallons": 20000,
+      "current_ppm": 100,
+      "positive_target_ppm": 50,
+      "expected_gallons": 10000,
+      "zero_target_refused": 0,
+      "derivation": "Conservation of mass: target/current = water retained, so replacement = 20000 * (1 - 50/100) = 10000 gallons."
+    },
+    "freshness": {
+      "max_age_hours": 12,
+      "inside_seconds": 43199,
+      "outside_seconds": 43201,
+      "requires_same_pool_local_day": true
+    }
+  }
 }

@@ -22,7 +22,7 @@ POSTGRES_SCHEMES = ("postgresql://", "postgres://")
 REAL_TYPE_RE = re.compile(r"\breal\b", re.IGNORECASE)
 LOGGER = logging.getLogger(__name__)
 CSI_FORMULA_VERSION = "openpool-csi-v1"
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 class Cursor(Protocol):
@@ -841,10 +841,32 @@ def _migrate_numeric_constraints(conn: Connection) -> None:
             )
 
 
+def _migrate_metric_mode(conn: Connection) -> None:
+    conn.execute("update pool_profiles set unit_system = 'us' where unit_system <> 'us'")
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        conn.execute(
+            "alter table pool_profiles add constraint ck_pool_profiles_unit_system_us "
+            "check (unit_system = 'us')"
+        )
+        return
+    for operation in ("insert", "update"):
+        conn.execute(
+            f"""
+            create trigger ck_pool_profiles_unit_system_us_{operation}
+            before {operation} on pool_profiles
+            when new.unit_system <> 'us'
+            begin
+              select raise(abort, 'metric display is not implemented; unit_system must be us');
+            end
+            """
+        )
+
+
 MIGRATIONS = (
     (1, _migrate_csi_metadata),
     (2, _migrate_linked_reading_integrity),
     (3, _migrate_numeric_constraints),
+    (4, _migrate_metric_mode),
 )
 
 

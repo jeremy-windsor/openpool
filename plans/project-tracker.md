@@ -14,12 +14,15 @@ history in this file.
 - Repo: `openpool`
 - Product: local-first Docker-hosted pool chemistry logbook and calculator.
 - Hardening baseline: `81c2c8b15306dfc525c91a282ace03ff1a3f85ea`
-- Primary image: `ghcr.io/jeremy-windsor/openpool:latest`
+- Primary pilot image: immutable `ghcr.io/jeremy-windsor/openpool:sha-<reviewed-commit>`;
+  `latest` is development-only.
 - Deployment posture: logging-only development may use an explicitly trusted
   LAN; recommendation-following remains loopback, SSH tunnel, or private VPN
   only until authentication exists.
-- Current milestone: Gate P hardening. Recommendation-following pilot is
-  blocked until the gate review and native restore drill pass.
+- Current milestone: Gate P complete; begin the supervised single-owner pilot
+  from an immutable image over loopback, SSH tunnel, or private VPN.
+- Gate P implementation revision: the commit titled
+  `Complete Gate P pilot readiness` (the commit containing this line).
 
 ## Standing Decisions
 
@@ -208,6 +211,17 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
   readings, 4 additions, and 1 maintenance event. The scratch run confirmed
   restores must use the production runtime UID/GID for the `0600` database.
 - Local route/form tests passed in the committed test suite.
+- Trustworthy Records upgrades unversioned SQLite files transactionally to
+  schema version 4; PostgreSQL migrations and parity run in CI. TC/CSI are
+  server-owned, CSI provenance is exported and displayed, numeric bounds have
+  DB backstops, and cross-pool links are rejected.
+- Every new/edit/settings form preserves submitted values and flags bad fields
+  inline with HTTP 422. A real stopped-server browser test verified that
+  `/history` renders only the root-scoped branded offline safety page.
+- Gate P critical fixtures pin D1-D5, including independent acid-strength
+  ratio arithmetic, percent boundaries, high-CYA refusal, dilution round-trip,
+  and freshness boundaries. Property tests cover monotonicity, linearity, and
+  TA-effect direction.
 - GitHub Actions Docker workflow passed for commit `c4aa4538296c`.
 - GHCR image publishes only after the test job passes.
 - Earlier Docker-hosted smoke test verified:
@@ -221,14 +235,12 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
 ## Current Requirements
 
 Gate P requirements are defined in
-`plans/hardening-and-pilot-readiness-plan.md`. The P-min dosing, locked-build,
-native backup/restore, and trustworthy-records slices are implemented.
-Trustworthy records now includes ordered transactional SQLite/PostgreSQL schema
-migrations, server-owned TC/CSI, persisted CSI provenance, same-pool
-linked-reading enforcement, hard numeric bounds, database backstops, and
-copier/export parity. Remaining Gate P work includes form error preservation,
-offline safety behavior, metric-label honesty, and the critical independent
-chemistry fixtures.
+`plans/hardening-and-pilot-readiness-plan.md`. Gate P is complete: D1-D10 and
+D12 are closed, the D11 supply-chain slice is merged, SP-1 through SP-6 are
+enforced, native restore was drilled, PostgreSQL runs in CI, forms preserve
+input, offline pages expose no cached chemistry, and the UI makes no metric
+claim. Gate X authentication/security and the deliberately deferred UI/product
+work remain post-P.
 
 ## Moved Later
 

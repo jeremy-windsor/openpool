@@ -1,5 +1,28 @@
 # OpenPool Next Steps
 
+## Current Handoff — 2026-07-12
+
+Gate P is complete. The live pilot path is an immutable reviewed GHCR image,
+loopback-only binding, Watchtower disabled, and access through loopback, SSH
+tunnel, or private VPN. The database has native backup/restore evidence and
+versioned SQLite/PostgreSQL migrations. Safe-dosing refusals, trustworthy
+records, form preservation, sterile offline behavior, US-only metric honesty,
+and critical D1-D5 fixtures are implemented and tested.
+
+Next work is post-P, in this order:
+
+1. Run the supervised pilot and record real workflow defects without widening
+   network exposure.
+2. Gate X: authentication, trusted-host/CSRF hardening, token hashing/rotation,
+   body limits, rate limits, and proxy guidance.
+3. Scheduled UI slices: mobile add-reading flow and mobile history. Metric
+   conversion remains deferred; the current UI explicitly supports US units
+   only.
+4. Post-P provenance/import work only after pilot evidence justifies it.
+
+Everything below this line is historical context from the June handoff. Where
+it conflicts with this section or the project tracker, this section wins.
+
 
 ## #1 Security Remediation — DeepSec scan (2026-06-28)
 

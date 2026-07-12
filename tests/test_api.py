@@ -5,6 +5,8 @@ import struct
 from datetime import date, timedelta
 from pathlib import Path
 
+import pytest
+
 STATIC_DIR = Path(__file__).parents[1] / "openpool" / "static"
 
 
@@ -18,6 +20,7 @@ def _png_size(path: Path) -> tuple[int, int]:
 def test_health_ok(client):
     response = client.get("/api/health")
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     body = response.json()
     assert body["ok"] is True
     assert body["app"] == "openpool"
@@ -100,6 +103,145 @@ def test_help_page_links_generated_api_docs(client):
     assert 'href="/docs"' in response.text
     assert 'href="/redoc"' in response.text
     assert 'href="/openapi.json"' in response.text
+
+
+def test_new_reading_error_preserves_values_and_renders_inline(client):
+    response = client.post(
+        "/readings/new",
+        data={"fc": "not-a-number", "notes": "keep this reading note"},
+    )
+
+    assert response.status_code == 422
+    assert 'value="not-a-number"' in response.text
+    assert "keep this reading note" in response.text
+    assert "valid number" in response.text
+
+
+def test_edit_reading_error_preserves_values_and_form_action(client):
+    reading_id = client.post(
+        "/api/pools/example/readings", json={"fc": 3, "ph": 7.5}
+    ).json()["id"]
+
+    response = client.post(
+        f"/readings/{reading_id}/edit",
+        data={"fc": "3", "ph": "20", "notes": "keep edit note"},
+    )
+
+    assert response.status_code == 422
+    assert f'action="/readings/{reading_id}/edit"' in response.text
+    assert 'value="20"' in response.text
+    assert "keep edit note" in response.text
+    assert "less than or equal to 14" in response.text
+
+
+def test_new_and_edit_addition_errors_preserve_values(client):
+    new_response = client.post(
+        "/additions/new",
+        data={
+            "chemical": "salt",
+            "amount": "too-much-ish",
+            "unit": "lb",
+            "reason": "keep new reason",
+        },
+    )
+    assert new_response.status_code == 422
+    assert 'value="too-much-ish"' in new_response.text
+    assert "keep new reason" in new_response.text
+
+    addition_id = client.post(
+        "/api/pools/example/additions",
+        json={"chemical": "salt", "amount": 10, "unit": "lb"},
+    ).json()["id"]
+    edit_response = client.post(
+        f"/additions/{addition_id}/edit",
+        data={
+            "chemical": "salt",
+            "amount": "10",
+            "unit": "lb",
+            "strength_percent": "101",
+            "notes": "keep addition edit",
+        },
+    )
+    assert edit_response.status_code == 422
+    assert f'action="/additions/{addition_id}/edit"' in edit_response.text
+    assert 'value="101"' in edit_response.text
+    assert "keep addition edit" in edit_response.text
+
+
+def test_new_and_edit_maintenance_errors_preserve_values(client):
+    new_response = client.post(
+        "/maintenance/new",
+        data={"event_type": "", "notes": "keep maintenance note"},
+    )
+    assert new_response.status_code == 422
+    assert "keep maintenance note" in new_response.text
+    assert "valid string" in new_response.text
+
+    event_id = client.post(
+        "/api/pools/example/maintenance",
+        json={"event_type": "backwash"},
+    ).json()["id"]
+    edit_response = client.post(
+        f"/maintenance/{event_id}/edit",
+        data={"event_type": "", "notes": "keep maintenance edit"},
+    )
+    assert edit_response.status_code == 422
+    assert f'action="/maintenance/{event_id}/edit"' in edit_response.text
+    assert "keep maintenance edit" in edit_response.text
+
+
+def test_settings_error_preserves_values_and_renders_inline(client):
+    response = client.post(
+        "/settings",
+        data={"name": "Preserve My Pool", "volume_gallons": "1000001"},
+    )
+
+    assert response.status_code == 422
+    assert 'value="Preserve My Pool"' in response.text
+    assert 'value="1000001"' in response.text
+    assert "less than or equal to 1000000" in response.text
+
+
+def test_settings_tells_truth_about_us_only_display(client):
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert "Metric display is not implemented yet" in response.text
+    assert '<input name="unit_system" type="hidden" value="us">' in response.text
+    assert "<select disabled" in response.text
+
+    rejected = client.post("/api/pools", json={"id": "metric", "unit_system": "metric"})
+    assert rejected.status_code == 422
+
+
+def test_settings_missing_pool_is_404(client):
+    client.app.state.default_pool_id = "missing-pool"
+
+    response = client.get("/settings")
+
+    assert response.status_code == 404
+
+
+def test_offline_fallback_contains_no_cached_chemistry():
+    offline = (STATIC_DIR / "offline.html").read_text()
+    worker = (STATIC_DIR / "sw.js").read_text()
+
+    assert "A connection is required" in offline
+    assert "no-store" not in offline  # static shell only; it contains no private data
+    assert "dose-card" not in offline
+    assert "snapshot" not in offline
+    assert 'caches.match("/static/offline.html")' in worker
+    assert "cache.put" not in worker
+    assert "event.request.mode === \"navigate\"" in worker
+
+
+def test_service_worker_is_served_at_root_scope(client):
+    response = client.get("/sw.js")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/javascript")
+    assert response.headers["cache-control"] in {"no-cache", "no-store"}
+    assert 'register("/sw.js")' in (STATIC_DIR / "app.js").read_text()
 
 
 def test_help_page_uses_configured_default_pool_id(tmp_path, monkeypatch):
@@ -655,6 +797,28 @@ def test_calculate_dilution_target_zero_is_400(client):
     )
     assert response.status_code == 400
     assert "does not prescribe a full drain" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "goal, field, value, maximum",
+    [
+        ("raise_fc", "target", 101, 100),
+        ("raise_cya", "target", 501, 500),
+        ("raise_salt", "target", 50_001, 50_000),
+        ("raise_ch", "target", 2_001, 2_000),
+        ("raise_ta", "target", 2_001, 2_000),
+        ("lower_ph", "current", 15, 14),
+    ],
+)
+def test_calculator_goal_specific_bounds(client, goal, field, value, maximum):
+    payload = {"goal": goal, "current": 1, "target": 2, "ta": 100}
+    payload[field] = value
+
+    response = client.post("/api/pools/example/calculate", json=payload)
+
+    assert response.status_code == 400
+    assert field in response.json()["detail"]
+    assert str(maximum) in response.json()["detail"]
 
 
 def test_calculate_swg_runtime(client):

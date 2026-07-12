@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_form_errors.html" import error_summary, field_errors %}
 
 {# Doubles as the "new addition" form and the edit form (set `addition`,
    `form_title`, and `form_action` in the context). #}
@@ -6,9 +7,11 @@
 {% block content %}
 <section>
   <h1>{{ form_title or "New Addition" }}</h1>
+  {{ error_summary(errors | default({})) }}
   <form method="post" action="{{ form_action or '/additions/new' }}" class="form-card">
     <label>Added at
       <input name="added_at" type="datetime-local" value="{{ addition.added_at_local[:16] if addition and addition.added_at_local else '' }}">
+      {{ field_errors(errors | default({}), "added_at") }}
     </label>
     <label>Chemical
       <select name="chemical">
@@ -28,10 +31,12 @@
         <option value="{{ value }}" {% if addition and addition.chemical == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
+      {{ field_errors(errors | default({}), "chemical") }}
     </label>
     <div class="form-grid">
       <label>Amount
-        <input name="amount" inputmode="decimal" value="{{ addition.amount | num(false) if addition else '' }}">
+        <input name="amount" inputmode="decimal" value="{{ addition.get('amount') | num(false) if addition else '' }}">
+        {{ field_errors(errors | default({}), "amount") }}
       </label>
       <label>Unit
         <select name="unit">
@@ -44,17 +49,21 @@
           <option value="{{ value }}" {% if addition and addition.unit == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
+        {{ field_errors(errors | default({}), "unit") }}
       </label>
       <label>Strength
-        <input name="strength_percent" inputmode="decimal" value="{{ addition.strength_percent | num(false) if addition else '' }}">
+        <input name="strength_percent" inputmode="decimal" value="{{ addition.get('strength_percent') | num(false) if addition else '' }}">
         <small>percent, if relevant</small>
+        {{ field_errors(errors | default({}), "strength_percent") }}
       </label>
     </div>
     <label>Reason
       <input name="reason" value="{{ addition.reason if addition and addition.reason else '' }}">
+      {{ field_errors(errors | default({}), "reason") }}
     </label>
     <label>Notes
       <textarea name="notes" rows="3">{{ addition.notes if addition and addition.notes else '' }}</textarea>
+      {{ field_errors(errors | default({}), "notes") }}
     </label>
     <button class="button primary" type="submit">Save addition</button>
   </form>

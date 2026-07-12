@@ -2,9 +2,10 @@
 
 Self-hosted pool chemistry logbook and calculator.
 
-> **Development status:** logging is usable, but dosing recommendations are
-> not approved for real-pool use until Gate P in the hardening plan passes.
-> Keep the service private; it does not have authentication yet.
+> **Pilot status:** Gate P safety work is implemented and verified. A single
+> owner may follow recommendations from an immutable reviewed image over
+> loopback, an SSH tunnel, or a private VPN after completing the deployment
+> checklist. Keep the service private; it still has no authentication.
 
 `openpool` is a small Docker-hosted web app for pool owners who want local
 history, transparent calculations, and portable exports without depending on a
@@ -106,6 +107,11 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 The compose files bind to `127.0.0.1` by default. Keep it behind localhost,
 SSH tunnel, VPN, or a trusted reverse proxy until authentication exists.
+
+Recommendation-following use is a supervised pilot, not automatic dosing:
+confirm the product label, log what was actually added, and retest before any
+repeat dose. OpenPool refuses stale/superseded readings and unsupported chart
+ranges rather than guessing.
 
 See:
 
