@@ -43,6 +43,27 @@ def test_native_backup_refuses_overwrite(tmp_path):
     assert destination.read_bytes() == b"keep me"
 
 
+def test_native_backup_does_not_overwrite_file_created_during_publish(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "openpool.sqlite"
+    sqlite3.connect(source).close()
+    destination = tmp_path / "raced.sqlite"
+    real_link = backup.os.link
+
+    def create_competing_file_then_link(temporary, target):
+        destination.write_bytes(b"competitor")
+        return real_link(temporary, target)
+
+    monkeypatch.setattr(backup.os, "link", create_competing_file_then_link)
+
+    with pytest.raises(FileExistsError):
+        backup.backup_sqlite(source, destination)
+
+    assert destination.read_bytes() == b"competitor"
+    assert not list(tmp_path.glob(".raced.sqlite.*.tmp"))
+
+
 def test_native_backup_refuses_live_database_as_destination(tmp_path):
     source = tmp_path / "openpool.sqlite"
     sqlite3.connect(source).close()

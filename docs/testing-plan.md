@@ -1,169 +1,104 @@
 # Testing Plan
 
-Validation strategy for OpenPool's dual-backend support (SQLite + PostgreSQL).
+OpenPool supports SQLite by default and optional PostgreSQL. The committed suite
+tests shared behavior, backend-specific persistence, chemistry safety policy,
+exports, backup handling, and deployment guardrails.
 
-## Test categories
+## Automated Coverage
 
-### 1. SQLite default path (existing behavior)
+| Area | Evidence |
+|------|----------|
+| Chemistry formulas and safety boundaries | `tests/test_chemistry.py`, `tests/test_services.py`, public fixtures under `tests/fixtures/` |
+| FastAPI routes, forms, share views, and exports | `tests/test_api.py` |
+| SQLite CRUD, migrations, constraints, timestamps, and schema preflight | `tests/test_persistence.py` |
+| Native SQLite backup integrity and no-clobber behavior | `tests/test_backup.py` |
+| PostgreSQL CRUD parity and SQLite-to-PostgreSQL copy | `tests/test_postgres.py` |
+| Compose loopback binding and Docker build-context allowlist | `tests/test_deployment.py` |
 
-**Goal**: confirm nothing changed when no `OPENPOOL_DATABASE_URL` is set.
+The persistence suite includes adversarial cases for future-version databases,
+forged current-version schemas, migration rollback after DDL, corrupt CSI
+metadata, duplicate pool creation, explicit zero values, and unbounded export
+queries. API tests reject blank required strings, booleans used as physical
+numbers, unsupported sanitizer values, malformed form encoding, and
+cross-origin writes.
 
-| Check | How | Automated? |
-|-------|-----|------------|
-| App starts and serves requests | `docker compose up`, curl `/api/health` | CI |
-| Create pool, reading, addition, maintenance via API | `tests/test_api.py`, `tests/test_persistence.py` | Yes (83 tests) |
-| Chemistry calculations unchanged | `tests/test_chemistry.py` | Yes |
-| CSV/JSON export unchanged | `tests/test_api.py` | Yes |
-| Share endpoints unchanged | `tests/test_persistence.py` | Yes |
-| SQLite file created at expected path | Manual: check `/data/openpool.sqlite` exists | Manual |
-| Data survives container restart | Manual: restart container, verify readings still present | Manual |
+## Backend Matrix
 
-### 2. PostgreSQL backend (new path)
+### SQLite
 
-**Goal**: confirm CRUD operations produce identical results to SQLite.
+SQLite tests run without `OPENPOOL_DATABASE_URL`. They cover application startup,
+schema upgrades, database constraints, the full route layer, and native backup.
+Schema creation and upgrades run in one explicit transaction. A database with a
+newer schema version is rejected before OpenPool creates or changes application
+tables.
 
-| Check | How | Automated? |
-|-------|-----|------------|
-| Schema creates all tables with correct types | `tests/test_postgres.py::test_postgres_crud_matches_sqlite` | Yes (needs PG) |
-| CRUD parity: same pool, reading, addition, maintenance operations produce same results on both backends | `tests/test_postgres.py::test_postgres_crud_matches_sqlite` | Yes (needs PG) |
-| `real` columns stored as `double precision` (8-byte, not 4-byte) | Covered by parity test (float round-trip) | Yes |
-| TEXT timestamps (not `timestamptz`) | Covered by parity test (string comparison) | Yes |
-| INTEGER booleans (not `boolean`) | Covered by parity test | Yes |
-| FK cascade deletes work | Covered by parity test (pool delete cascades) | Yes |
-| Connection failure handled gracefully | Manual: set bad URL, verify app reports error | Manual |
-| Missing psycopg gives clear error | `tests/test_persistence.py::test_connect_rejects_libpq_keyword_dsn` | Yes |
+### PostgreSQL
 
-### 3. Migration tool (`openpool-migrate`)
+`tests/test_postgres.py` needs `OPENPOOL_TEST_DATABASE_URL`. The tests compare
+SQLite and PostgreSQL CRUD snapshots and run the real migration command. If the
+variable is set and PostgreSQL is unavailable or broken, the tests fail; they do
+not silently skip. GitHub Actions supplies a PostgreSQL service, so both parity
+tests execute in CI.
 
-**Goal**: SQLite data arrives in PostgreSQL intact.
+### SQLite-to-PostgreSQL migration
 
-| Check | How | Automated? |
-|-------|-----|------------|
-| Dry-run reports row counts without writing | `tests/test_postgres.py::test_migration_copies_sqlite_rows_to_postgres` | Yes (needs PG) |
-| Full migration copies all tables in FK order | Same test verifies row counts match | Yes (needs PG) |
-| Idempotency: running twice does not duplicate or fail (ON CONFLICT DO NOTHING) | Run migration twice, verify counts unchanged | Manual |
-| `--truncate` clears destination before copying | Manual: run with `--truncate`, verify target has only source rows | Manual |
-| Migration aborts cleanly on connection failure | Manual: point at unreachable PG, verify no partial data | Manual |
-| Transaction safety: bulk load is atomic | Covered by migration using `autocommit=False` with `commit()/rollback()` | Yes (code path) |
+`openpool-migrate`:
 
-### 4. Cross-backend behavioral parity
+- requires the source SQLite database to be at the current schema version;
+- validates every copied source column before writing;
+- holds one SQLite read transaction across validation, counts, and copied rows;
+- writes the destination in a transaction; and
+- rolls back the destination copy on failure.
 
-**Goal**: same data in SQLite and PostgreSQL produces identical API responses.
+The PostgreSQL integration test covers the full copy. The local dry-run test
+covers source validation and row-count reporting without a PostgreSQL server.
 
-| Check | How |
-|-------|-----|
-| Seed both backends with identical data, compare `/api/pools/{id}` responses | Manual or script |
-| Compare `/api/pools/{id}/readings` ordering and values | Manual or script |
-| Compare `/api/pools/{id}/share.json` output | Manual or script |
-| Compare CSV export byte-for-byte | Manual or script |
-| Chemistry calculations (CSI, dosing, targets) produce same results | Covered by `test_postgres_crud_matches_sqlite` |
+## Run Locally
 
-### 5. Docker Compose validation
-
-| Mode | Check | How |
-|------|-------|-----|
-| SQLite (`docker-compose.yml`) | App starts, health check passes, data persists after restart | Manual |
-| PostgreSQL (`docker-compose.postgres.yml`) | Both `db` and `openpool` start, health checks pass | Manual |
-| PostgreSQL | `openpool` waits for `db` healthy before starting (depends_on) | Manual |
-| PostgreSQL | Data persists in named volume after `docker compose down` + `up` | Manual |
-| PostgreSQL | App not exposed publicly (bound to `127.0.0.1`) | Manual: check port binding |
-
-### 6. Edge cases
-
-| Scenario | Expected behavior | Test |
-|----------|-------------------|------|
-| `OPENPOOL_DATABASE_URL` not set | SQLite mode, no psycopg import | Existing tests |
-| `OPENPOOL_DATABASE_URL` set to valid PG URL | PostgreSQL mode | `test_postgres.py` |
-| `OPENPOOL_DATABASE_URL` set to libpq keyword DSN (`host=... dbname=...`) | ValueError, clear message | `test_persistence.py::test_connect_rejects_libpq_keyword_dsn` |
-| `OPENPOOL_DATABASE_URL` set to garbage | ValueError, clear message | `test_persistence.py::test_database_url_rejects_malformed_value` |
-| psycopg not installed but PG URL set | RuntimeError: "install with the postgres extra" | Manual |
-| Postgres server down/unreachable | Connection error at request time | Manual |
-| Migration source SQLite file missing | Error before any writes | Manual |
-| Migration target already has data | ON CONFLICT DO NOTHING skips existing rows | Manual |
-
-## Running tests
-
-### SQLite only (default, no dependencies)
+SQLite and all non-PostgreSQL checks:
 
 ```bash
+uv run ruff check .
 uv run pytest -q
+git diff --check
 ```
 
-All 85 tests run. Two Postgres tests skip automatically.
+The two PostgreSQL tests skip only when `OPENPOOL_TEST_DATABASE_URL` is unset.
 
-### With PostgreSQL parity tests
-
-Start a Postgres instance:
+To run them locally, start a disposable PostgreSQL instance and point the suite
+at it:
 
 ```bash
 docker run -d --name openpool-test-pg \
   -e POSTGRES_USER=openpool \
-  -e POSTGRES_PASSWORD=*** \
+  -e POSTGRES_PASSWORD=change-me \
   -e POSTGRES_DB=openpool_test \
   -p 15432:5432 \
   postgres:16-alpine
-```
 
-Run the full suite with the test database URL:
-
-```bash
-OPENPOOL_TEST_DATABASE_URL=postgresql://openpool:***@localhost:15432/openpool_test \
+OPENPOOL_TEST_DATABASE_URL=postgresql://openpool:change-me@localhost:15432/openpool_test \
   uv run pytest -q
 ```
 
-All 87 tests run (85 SQLite + 2 Postgres parity).
+Use a disposable database. The PostgreSQL tests create and delete test records.
 
-### Lint
+## CI
 
-```bash
-uv run ruff check .
-```
+`.github/workflows/docker.yml` currently:
 
-## CI considerations
+1. starts PostgreSQL 16 and waits for `pg_isready`;
+2. installs locked development and PostgreSQL dependencies;
+3. runs Ruff and the full pytest suite with PostgreSQL enabled; and
+4. allows image publication only after the test job passes.
 
-The existing GitHub Actions workflow (`.github/workflows/`) runs the SQLite test suite automatically. To add Postgres coverage in CI:
+## Manual Release Checks
 
-1. Add a `services:` block to the test job with `postgres:16-alpine`.
-2. Set `OPENPOOL_TEST_DATABASE_URL` to point at the service container.
-3. Run the full suite — Postgres tests will execute instead of skipping.
+Automated tests do not replace these deployment checks:
 
-Example CI service block:
-
-```yaml
-services:
-  postgres:
-    image: postgres:16-alpine
-    env:
-      POSTGRES_USER: openpool
-      POSTGRES_PASSWORD: openpool
-      POSTGRES_DB: openpool_test
-    ports:
-      - 5432:5432
-    options: >-
-      --health-cmd "pg_isready -U openpool"
-      --health-interval 5s
-      --health-timeout 5s
-      --health-retries 12
-```
-
-## Test matrix
-
-| Test file | SQLite | PostgreSQL | Notes |
-|-----------|--------|------------|-------|
-| `tests/test_chemistry.py` | ✅ | N/A | Pure math, no DB |
-| `tests/test_api.py` | ✅ | N/A | API layer over SQLite fixture |
-| `tests/test_persistence.py` | ✅ | N/A | SQLite-specific (temp files, pragmas) |
-| `tests/test_postgres.py` | ⏭️ skip | ✅ | Requires `OPENPOOL_TEST_DATABASE_URL` |
-
-## What belongs in this repo
-
-The following are appropriate for a public repository:
-
-- Source code (`openpool/`)
-- Tests (`tests/`)
-- Documentation (`docs/`, `README.md`)
-- Docker configuration (`Dockerfile`, `docker-compose*.yml`)
-- CI workflows (`.github/workflows/`)
-- Plans (`plans/`)
-
-Example credentials in compose files and docs (e.g., `openpool:***@db:5432`) are standard practice. Document that users must change default passwords before any non-local exposure.
+- Build the image and verify `/api/health` and `/api/version`.
+- Confirm the published port remains bound to `127.0.0.1`.
+- Restart the container and verify SQLite or PostgreSQL data persists.
+- Restore a native SQLite backup into scratch storage and verify row counts.
+- If using an HTTPS reverse proxy, verify one legitimate write and one rejected
+  mismatched-Origin write with the exact proxy trust configuration.
+- Verify an immutable image tag before recommendation-following pilot use.

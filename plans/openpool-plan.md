@@ -31,7 +31,7 @@ Everything else should subscribe to that clean local source of truth.
    - SQLite database stored in a Docker volume.
    - No required cloud account.
    - No browser LocalStorage as primary truth.
-   - Easy backup by copying the SQLite file or using built-in JSON/CSV export.
+   - Native SQLite backup for recovery plus built-in JSON/CSV portable exports.
 
 2. **Transparent pool chemistry calculator**
    - Implement calculations from first principles and public pool-care methodology.
@@ -53,7 +53,7 @@ Everything else should subscribe to that clean local source of truth.
 
 5. **Portable exports**
    - CSV export for readings and additions.
-   - JSON export for backups and integrations.
+   - JSON export for inspection and integrations.
    - Read-only share endpoint similar in spirit to hosted pool apps.
    - Home Assistant-friendly REST/MQTT output.
    - nodejs-poolController/dashPanel-friendly JSON endpoint.
@@ -559,7 +559,7 @@ Required:
 Required:
 
 - latest reading JSON
-- all-data backup JSON
+- all-data portable JSON export
 - share JSON
 
 ### CSV import
@@ -772,7 +772,7 @@ Deliverables:
 
 - Optional auth/read-token.
 - CSV import.
-- JSON backup/restore.
+- Native database backup/restore; portable JSON import remains separate work.
 - Better validation/error handling.
 - Docs.
 - CI.

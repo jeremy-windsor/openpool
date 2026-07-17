@@ -11,6 +11,7 @@ from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
 from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
 from openpool.chemistry.chlorine import dose_dry_chlorine_for_fc, dose_liquid_chlorine_for_fc
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
+from openpool.chemistry.dosing import PRODUCT_LABEL_WARNING, Dose
 from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
 from openpool.chemistry.salt import dose_salt_for_ppm
 from openpool.chemistry.targets import fc_cya_targets
@@ -106,6 +107,11 @@ def test_cya_above_chart_refuses_numeric_target():
         fc_cya_targets(200, sanitizer="liquid_chlorine")
 
 
+def test_unknown_sanitizer_refuses_target_table():
+    with pytest.raises(ValueError, match="sanitizer must be liquid_chlorine or swg"):
+        fc_cya_targets(40, sanitizer="swgg")
+
+
 def test_missing_cya_uses_lowest_bucket_and_warns():
     targets = fc_cya_targets(None, sanitizer="liquid_chlorine")
     assert targets.cya == 20
@@ -161,6 +167,17 @@ def test_normalize_percent_uses_percent_only_semantics():
 def test_normalize_percent_rejects_ambiguous_or_impossible_values(strength):
     with pytest.raises(ValueError):
         normalize_percent(strength)
+
+
+def test_cal_hypo_explicit_zero_strength_is_not_treated_as_default():
+    with pytest.raises(ValueError, match="percent strength must be between 1 and 100"):
+        dose_dry_chlorine_for_fc(
+            10_000,
+            0,
+            10,
+            "cal_hypo",
+            available_chlorine_percent=0,
+        )
 
 
 def test_unusual_chlorine_strengths_warn_without_refusing():
@@ -259,6 +276,43 @@ def test_ppm_to_pounds_identity():
     # 1 ppm by mass in 1,000,000 lb of water equals 1 lb of solute.
     pounds = ppm_to_pounds(1, 1_000_000 / 8.345404452)
     assert pounds == pytest.approx(1.0, rel=1e-6)
+
+
+def test_dose_warnings_lead_with_product_label_contract():
+    dose = Dose(
+        chemical="test_product",
+        amount=1,
+        unit="lb",
+        warnings=["Specific handling warning."],
+    )
+
+    assert dose.warnings == [PRODUCT_LABEL_WARNING, "Specific handling warning."]
+
+
+@pytest.mark.parametrize(
+    "dose",
+    [
+        Dose("test", float("nan"), "lb"),
+        Dose("test", 1, "lb", secondary={"bags": float("inf")}),
+        Dose("test", 1, "lb", effects={"cya": float("-inf")}),
+    ],
+)
+def test_dose_serialization_rejects_non_finite_outputs(dose):
+    with pytest.raises(ValueError, match="calculated .* must be a finite number"):
+        dose.to_dict()
+
+
+def test_small_positive_dose_does_not_round_to_zero():
+    dose = dose_liquid_chlorine_for_fc(
+        pool_gallons=300,
+        current_fc=1,
+        target_fc=1.1,
+        chlorine_percent=10,
+    )
+
+    assert dose.amount == pytest.approx(0.038, abs=0.001)
+    assert dose.secondary["gallons"] > 0
+    assert dose.secondary["jugs"] > 0
 
 
 def test_calcium_chloride_reference_cases(reference_examples):

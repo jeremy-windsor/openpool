@@ -1,0 +1,23 @@
+# Keep the build context restricted to files copied by Dockerfile. This keeps
+# local databases, credentials, VCS history, virtualenvs, and backups away from
+# both local and remote BuildKit contexts.
+**
+!Dockerfile
+!README.md
+!pyproject.toml
+!uv.lock
+!openpool/
+!openpool/*.py
+!openpool/chemistry/
+!openpool/chemistry/*.py
+!openpool/routers/
+!openpool/routers/*.py
+!openpool/templates/
+!openpool/templates/*.html
+!openpool/static/
+!openpool/static/*.css
+!openpool/static/*.html
+!openpool/static/*.js
+!openpool/static/*.png
+!openpool/static/*.svg
+!openpool/static/*.webmanifest

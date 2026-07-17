@@ -47,11 +47,12 @@ Findings addressed:
 - Additions CSV and all-data JSON export were added.
 - Run docs now include both Docker and `uv` development paths.
 
-Known gaps:
+Current status update (2026-07-17):
 
-- A committed `tests/` suite (chemistry + persistence + FastAPI routes, 32
-  tests) now runs in GitHub Actions and gates the container build. Route tests
-  surfaced and fixed a SQLite cross-thread bug in async page routes.
-- Metric support is not implemented beyond the stored preference.
-- Maintenance event UI/API/export and settings-history logging are still future work.
-- Authentication is the next hardening step before any non-local exposure.
+- The committed suite now covers chemistry, services, SQLite and PostgreSQL
+  persistence, API/forms, exports, native backup, and deployment guardrails.
+- Maintenance UI/API/export is implemented. Settings-history logging remains
+  deferred.
+- Metric behavior is deliberately disabled; the shipped interface is US-only.
+- Authentication, share-token hashing/rotation, request limits, and rate
+  limiting remain Gate X work before broader exposure.

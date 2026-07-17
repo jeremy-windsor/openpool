@@ -28,7 +28,10 @@ router = APIRouter()
 
 
 async def _form_data(request: Request) -> dict[str, str]:
-    body = (await request.body()).decode()
+    try:
+        body = (await request.body()).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="form body must be valid UTF-8") from exc
     parsed = parse_qs(body, keep_blank_values=True)
     return {key: values[-1] for key, values in parsed.items()}
 
@@ -613,6 +616,8 @@ def share_page(
         snapshot = services.build_snapshot(conn, pool_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return templates.TemplateResponse(
         request=request,
         name="share.html",

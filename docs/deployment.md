@@ -126,7 +126,10 @@ OPENPOOL_DATABASE_URL=postgresql://openpool:openpool@localhost:5432/openpool \
 The migration copies `pool_profiles`, `test_readings`, `chemical_additions`,
 and `maintenance_events` in foreign-key order with `ON CONFLICT DO NOTHING`.
 Use `--truncate` to clear those destination tables in the same transaction
-before copying.
+before copying. The source must already be at OpenPool's current schema version;
+start the reviewed application image against it once before migrating if an
+upgrade is required. The copier validates the source schema and holds one
+read-only SQLite snapshot across counts and copied rows.
 
 PostgreSQL parity tests are skipped unless `OPENPOOL_TEST_DATABASE_URL` points
 at a test database:
@@ -168,6 +171,14 @@ header and pass standard forwarded headers such as `X-Forwarded-For`,
 `X-Forwarded-Proto`, and `Forwarded`. The app's write-safety checks compare
 request origin information to the effective host, so proxy header rewriting can
 break legitimate form/API writes or weaken those checks.
+
+Uvicorn trusts forwarded headers only from `127.0.0.1` by default. If a proxy
+reaches the container from a Docker bridge or another address, set
+`FORWARDED_ALLOW_IPS` to that exact proxy IP or narrow CIDR. Do not set it to
+`*` when any untrusted client can reach the application port; that would let a
+client spoof the effective scheme and address. After configuring HTTPS, test a
+real form write and confirm a request with a mismatched `Origin` still returns
+`403`.
 
 Logging-only development use may run on a trusted LAN/VLAN only when every
 client is allowed to read and write pool data and the operator accepts that

@@ -28,6 +28,9 @@ PUT  /api/pools/{pool_id}
 Pool IDs are limited to letters, numbers, underscores, and dashes.
 `surface` is one of `plaster`, `fiberglass`, or `vinyl`; plaster includes
 cementitious pebble and aggregate finishes for calculation grouping.
+`sanitizer` is `liquid_chlorine` or `swg`; the legacy
+`salt_water_generator` spelling is accepted for existing clients. Creating an
+already-existing pool ID returns `409`.
 
 ## Readings
 
@@ -116,6 +119,8 @@ GET /share/{pool_id}.json
 
 `all.json` is a portable inspection/interchange export. It is not a native
 database backup and cannot currently be restored through OpenPool.
+Export routes return the complete stored history rather than the normal
+100-record list view.
 
 The readings CSV and portable JSON include stored CSI provenance.
 

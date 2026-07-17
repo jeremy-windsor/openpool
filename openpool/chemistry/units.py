@@ -65,4 +65,9 @@ def require_finite_values(**values: float | None) -> None:
 
 
 def rounded(value: float, digits: int = 2) -> float:
-    return round(value + 0.0, digits)
+    rounded_value = round(value + 0.0, digits)
+    if value != 0 and rounded_value == 0:
+        # Keep two significant digits when fixed display precision would turn a
+        # real dose into an unexplained zero.
+        return float(f"{value:.2g}")
+    return rounded_value

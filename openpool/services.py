@@ -43,6 +43,12 @@ GOAL_VALUE_BOUNDS: dict[str, tuple[float, float]] = {
     "lower_by_dilution": (0, 50_000),
     "swg_runtime": (0, 100),
 }
+CALCULATION_INPUT_BOUNDS: dict[str, tuple[float, float]] = {
+    "strength": (1, 100),
+    "ta": (0, 2_000),
+    "cya": (0, 500),
+    "borates": (0, 200),
+}
 
 
 def humanize_number(value: Any, grouping: bool = True) -> str:
@@ -58,6 +64,8 @@ def humanize_number(value: Any, grouping: bool = True) -> str:
     if number == int(number):
         whole = int(number)
         return f"{whole:,}" if grouping else str(whole)
+    if number != 0 and round(number, 2) == 0:
+        return f"{number:.2g}"
     formatted = f"{number:,.2f}" if grouping else f"{number:.2f}"
     return formatted.rstrip("0").rstrip(".")
 
@@ -92,9 +100,16 @@ def reading_tiles(
     def value(key: str) -> float | None:
         return reading.get(key) if reading else None
 
-    is_swg = sanitizer.lower() in {"swg", "salt_water_generator"}
-    cya_low, cya_high = (60, 80) if is_swg else (30, 60)
-    salt_low, salt_high = (2700, 3400) if is_swg else (None, None)
+    normalized_sanitizer = sanitizer.lower()
+    if normalized_sanitizer in {"swg", "salt_water_generator"}:
+        cya_low, cya_high = 60, 80
+        salt_low, salt_high = 2700, 3400
+    elif normalized_sanitizer == "liquid_chlorine":
+        cya_low, cya_high = 30, 60
+        salt_low, salt_high = None, None
+    else:
+        cya_low, cya_high = None, None
+        salt_low, salt_high = None, None
 
     # "target" ranges come from sanitizer-specific recommendations (FC/CYA
     # chart, SWG salt window); everything else is a generic comfort range and
@@ -169,8 +184,28 @@ def _require(values: dict[str, Any], goal: str, *names: str) -> None:
         raise ValueError(f"{goal} needs: {', '.join(missing)}")
 
 
+def _value_or_default(values: dict[str, Any], name: str, default: Any) -> Any:
+    value = values.get(name)
+    return default if value is None else value
+
+
+def _validate_calculation_inputs(values: dict[str, Any]) -> None:
+    for name, (low, high) in CALCULATION_INPUT_BOUNDS.items():
+        value = values.get(name)
+        if value is not None and not low <= float(value) <= high:
+            raise ValueError(f"{name} must be between {low:g} and {high:g}")
+
+    cell_lbs_per_day = values.get("cell_lbs_per_day")
+    if cell_lbs_per_day is not None and float(cell_lbs_per_day) <= 0:
+        raise ValueError("cell_lbs_per_day must be greater than 0")
+
+    pump_hours = values.get("pump_hours")
+    if pump_hours is not None and not 0 < float(pump_hours) <= 24:
+        raise ValueError("pump_hours must be greater than 0 and at most 24")
+
+
 def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> dict[str, Any]:
-    pool_gallons = float(values.get("pool_gallons") or pool["volume_gallons"])
+    pool_gallons = float(_value_or_default(values, "pool_gallons", pool["volume_gallons"]))
     numeric_values = {"pool_gallons": pool_gallons}
     numeric_values.update(
         {
@@ -184,7 +219,10 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             raise ValueError(f"{name} must be a finite number")
     if not 0 < pool_gallons <= 1_000_000:
         raise ValueError("pool_gallons must be greater than 0 and at most 1000000")
-    low, high = GOAL_VALUE_BOUNDS.get(goal, (0, 50_000))
+    if goal not in GOAL_VALUE_BOUNDS:
+        raise ValueError(f"supported goals are {', '.join(SUPPORTED_GOALS)}")
+    _validate_calculation_inputs(values)
+    low, high = GOAL_VALUE_BOUNDS[goal]
     for name in ("current", "target"):
         value = values.get(name)
         if value is not None and not low <= float(value) <= high:
@@ -200,9 +238,11 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
                 current_fc=float(values["current"]),
                 target_fc=float(values["target"]),
                 chlorine_percent=float(
-                    values.get("strength") or pool["default_chlorine_percent"]
+                    _value_or_default(
+                        values, "strength", pool["default_chlorine_percent"]
+                    )
                 ),
-                jug_size_fl_oz=float(pool.get("jug_size_fl_oz") or 128.0),
+                jug_size_fl_oz=float(_value_or_default(pool, "jug_size_fl_oz", 128.0)),
             )
         else:
             dose = dose_dry_chlorine_for_fc(
@@ -212,19 +252,23 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
                 product=product,
                 available_chlorine_percent=(
                     float(values["strength"])
-                    if product == "cal_hypo" and values.get("strength")
+                    if product == "cal_hypo" and values.get("strength") is not None
                     else None
                 ),
             )
     elif goal == "slam_fc":
         _require(values, goal, "current")
-        targets = fc_cya_targets(values.get("cya"), pool.get("sanitizer") or "liquid_chlorine")
+        targets = fc_cya_targets(
+            values.get("cya"), _value_or_default(pool, "sanitizer", "liquid_chlorine")
+        )
         dose = dose_liquid_chlorine_for_fc(
             pool_gallons=pool_gallons,
             current_fc=float(values["current"]),
             target_fc=targets.slam,
-            chlorine_percent=float(values.get("strength") or pool["default_chlorine_percent"]),
-            jug_size_fl_oz=float(pool.get("jug_size_fl_oz") or 128.0),
+            chlorine_percent=float(
+                _value_or_default(values, "strength", pool["default_chlorine_percent"])
+            ),
+            jug_size_fl_oz=float(_value_or_default(pool, "jug_size_fl_oz", 128.0)),
         )
         dose.warnings.extend(targets.warnings)
         dose.warnings.extend(
@@ -250,7 +294,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             pool_gallons=pool_gallons,
             current_salt=float(values["current"]),
             target_salt=float(values["target"]),
-            bag_size_lbs=float(pool.get("bag_size_lbs") or 40.0),
+            bag_size_lbs=float(_value_or_default(pool, "bag_size_lbs", 40.0)),
         )
     elif goal == "raise_ch":
         _require(values, goal, "current", "target")
@@ -275,7 +319,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             ta=float(values["ta"]),
             cya=values.get("cya"),
             borates=values.get("borates"),
-            acid_percent=float(values.get("strength") or 31.45),
+            acid_percent=float(_value_or_default(values, "strength", 31.45)),
         )
     elif goal == "raise_ph":
         _require(values, goal, "current", "target", "ta")
@@ -300,7 +344,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             pool_gallons=pool_gallons,
             cell_lbs_per_day=float(values["cell_lbs_per_day"]),
             target_fc_per_day=float(values["target"]),
-            pump_hours_per_day=float(values.get("pump_hours") or 24.0),
+            pump_hours_per_day=float(_value_or_default(values, "pump_hours", 24.0)),
         )
     else:
         raise ValueError(f"supported goals are {', '.join(SUPPORTED_GOALS)}")
@@ -323,33 +367,44 @@ def recommended_actions(
     additions: list[dict[str, Any]] | None = None,
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
-    if not reading or reading.get("fc") is None:
+    if not reading:
         return []
+    if reading.get("fc") is None:
+        return [_retest_action("The latest reading has no FC value. Retest before dosing.")]
 
     try:
         targets = fc_cya_targets(
-            reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine"
+            reading.get("cya"), _value_or_default(pool, "sanitizer", "liquid_chlorine")
         )
     except ValueError as exc:
         return [_retest_action(str(exc))]
 
     current_fc = float(reading["fc"])
-    if current_fc >= targets.target_low:
-        return []
-
     block_reason = _recommendation_block_reason(pool, reading, additions or [], now)
     if block_reason:
         return [_retest_action(block_reason)]
+    if current_fc >= targets.target_low:
+        return []
 
     target_fc = targets.target_high
     dose = dose_liquid_chlorine_for_fc(
         pool_gallons=float(pool["volume_gallons"]),
         current_fc=current_fc,
         target_fc=target_fc,
-        chlorine_percent=float(pool.get("default_chlorine_percent") or 10.0),
-        jug_size_fl_oz=float(pool.get("jug_size_fl_oz") or 128.0),
+        chlorine_percent=float(
+            _value_or_default(pool, "default_chlorine_percent", 10.0)
+        ),
+        jug_size_fl_oz=float(_value_or_default(pool, "jug_size_fl_oz", 128.0)),
     )
+    dose.warnings.extend(targets.warnings)
     severity = "danger" if current_fc < targets.minimum else "caution"
+    why = (
+        f"FC is {current_fc:g} ppm. With CYA rounded to {targets.cya:g}, "
+        "the maintenance target range is "
+        f"{targets.target_low:g}-{targets.target_high:g} ppm."
+    )
+    if targets.warnings:
+        why = f"{' '.join(targets.warnings)} {why}"
     return [
         {
             "kind": "chlorine",
@@ -358,11 +413,7 @@ def recommended_actions(
             "summary": f"Add about {dose.amount:g} {dose.unit.replace('_', ' ')}.",
             "targetFc": target_fc,
             "dose": dose.to_dict(),
-            "why": (
-                f"FC is {current_fc:g} ppm. With CYA rounded to {targets.cya:g}, "
-                "the maintenance target range is "
-                f"{targets.target_low:g}-{targets.target_high:g} ppm."
-            ),
+            "why": why,
         }
     ]
 
@@ -441,18 +492,23 @@ def status_summary(
         return {"level": "empty", "text": "No readings yet"}
 
     actions = recommended_actions(pool, reading, additions, now)
-    if any(action["severity"] == "retest" for action in actions):
+    needs_retest = any(action["severity"] == "retest" for action in actions)
+    if needs_retest:
         return {"level": "caution", "text": "Retest before dosing"}
     if any(action["severity"] == "danger" for action in actions):
         return {"level": "danger", "text": "Act now - low FC"}
 
     try:
         targets = fc_cya_targets(
-            reading.get("cya"), pool.get("sanitizer") or "liquid_chlorine"
+            reading.get("cya"), _value_or_default(pool, "sanitizer", "liquid_chlorine")
         )
     except ValueError:
         targets = None
-    tiles = reading_tiles(reading, targets, pool.get("sanitizer") or "liquid_chlorine")
+    tiles = reading_tiles(
+        reading,
+        targets,
+        _value_or_default(pool, "sanitizer", "liquid_chlorine"),
+    )
     outside_count = sum(tile["state"] in {"low", "high"} for tile in tiles)
     if outside_count:
         reading_text = "reading" if outside_count == 1 else "readings"
@@ -479,7 +535,7 @@ def build_snapshot(conn: db.Connection, pool_id: str) -> dict[str, Any]:
     try:
         targets = fc_cya_targets(
             latest.get("cya") if latest else pool.get("default_cya_target"),
-            pool.get("sanitizer") or "liquid_chlorine",
+            _value_or_default(pool, "sanitizer", "liquid_chlorine"),
         )
     except ValueError as exc:
         targets = None
@@ -506,7 +562,11 @@ def build_snapshot(conn: db.Connection, pool_id: str) -> dict[str, Any]:
         },
         "status": status_summary(pool, latest, recommendation_additions),
         "overview": overview,
-        "tiles": reading_tiles(latest, targets, pool.get("sanitizer") or "liquid_chlorine"),
+        "tiles": reading_tiles(
+            latest,
+            targets,
+            _value_or_default(pool, "sanitizer", "liquid_chlorine"),
+        ),
         "targets": targets.to_dict() if targets else {"error": target_error},
         "recommendations": recommended_actions(pool, latest, recommendation_additions),
         "recentAdditions": [

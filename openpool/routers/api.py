@@ -58,6 +58,8 @@ def create_pool(pool: PoolIn, conn: db.Connection = Depends(get_db)) -> dict[str
     try:
         created = db.create_pool(conn, dump_model(pool, exclude_none=True))
         return db.public_pool(created)
+    except db.PoolAlreadyExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -83,7 +85,7 @@ def update_pool(
         updated = db.update_pool(
             conn,
             pool_id,
-            dump_model(pool, exclude_none=True, exclude_unset=True),
+            dump_model(pool, exclude_unset=True),
         )
         return db.public_pool(updated)
     except KeyError as exc:
@@ -173,6 +175,7 @@ def delete_reading(
     conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
+        db.validate_pool_id(pool_id)
         db.delete_reading(conn, pool_id, reading_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
@@ -231,6 +234,7 @@ def delete_addition(
     conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
+        db.validate_pool_id(pool_id)
         db.delete_addition(conn, pool_id, addition_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
@@ -292,6 +296,7 @@ def delete_maintenance(
     conn: db.Connection = Depends(get_db),
 ) -> None:
     try:
+        db.validate_pool_id(pool_id)
         db.delete_maintenance(conn, pool_id, event_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc

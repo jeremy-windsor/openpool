@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import struct
 from datetime import date, timedelta
@@ -236,12 +238,167 @@ def test_pool_api_rejects_unknown_surface(client):
     assert "surface" in response.text
 
 
+def test_pool_api_rejects_unknown_sanitizer(client):
+    response = client.put(
+        "/api/pools/example",
+        json={"sanitizer": "mystery-system"},
+    )
+
+    assert response.status_code == 422
+    assert "sanitizer" in response.text
+
+
+@pytest.mark.parametrize("sanitizer", ["liquid_chlorine", "swg", "salt_water_generator"])
+def test_pool_api_accepts_supported_sanitizers(client, sanitizer):
+    response = client.put("/api/pools/example", json={"sanitizer": sanitizer})
+
+    assert response.status_code == 200
+    assert response.json()["sanitizer"] == sanitizer
+
+
+@pytest.mark.parametrize(
+    "method,path,payload,field",
+    [
+        ("put", "/api/pools/example", {"name": "   "}, "name"),
+        (
+            "post",
+            "/api/pools/example/readings",
+            {"fc": 3, "source": "\t"},
+            "source",
+        ),
+        (
+            "post",
+            "/api/pools/example/additions",
+            {"chemical": "   ", "amount": 1, "unit": "lb"},
+            "chemical",
+        ),
+        (
+            "post",
+            "/api/pools/example/additions",
+            {"chemical": "salt", "amount": 1, "unit": "\n"},
+            "unit",
+        ),
+        (
+            "post",
+            "/api/pools/example/maintenance",
+            {"event_type": "   "},
+            "event_type",
+        ),
+    ],
+)
+def test_api_rejects_blank_required_strings(client, method, path, payload, field):
+    response = getattr(client, method)(path, json=payload)
+
+    assert response.status_code == 422
+    assert field in response.text
+
+
+@pytest.mark.parametrize(
+    "path,payload,field",
+    [
+        ("/api/pools/example/readings", {"fc": True}, "fc"),
+        (
+            "/api/pools/example/additions",
+            {"chemical": "salt", "amount": True, "unit": "lb"},
+            "amount",
+        ),
+        ("/api/pools", {"id": "boolean-volume", "volume_gallons": True}, "volume_gallons"),
+        (
+            "/api/pools/example/calculate",
+            {"goal": "swg_runtime", "target": True, "cell_lbs_per_day": 1.4},
+            "target",
+        ),
+    ],
+)
+def test_api_rejects_booleans_for_physical_numbers(client, path, payload, field):
+    response = client.post(path, json=payload)
+
+    assert response.status_code == 422
+    assert field in response.text
+
+
+@pytest.mark.parametrize("field", ["name", "volume_gallons", "sanitizer", "share_enabled"])
+def test_pool_update_rejects_null_for_required_fields(client, field):
+    response = client.put("/api/pools/example", json={field: None})
+
+    assert response.status_code == 422
+    assert field in response.text
+
+
+def test_pool_update_can_clear_nullable_spa_volume(client):
+    configured = client.put("/api/pools/example", json={"spa_volume_gallons": 500})
+    assert configured.status_code == 200
+    assert configured.json()["spa_volume_gallons"] == 500
+
+    cleared = client.put("/api/pools/example", json={"spa_volume_gallons": None})
+
+    assert cleared.status_code == 200
+    assert cleared.json()["spa_volume_gallons"] is None
+
+
+def test_duplicate_pool_returns_conflict(client):
+    response = client.post("/api/pools", json={"id": "example"})
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_pool_create_preserves_zero_targets(client):
+    response = client.post(
+        "/api/pools",
+        json={"id": "zero-targets", "default_cya_target": 0, "default_salt_target": 0},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["default_cya_target"] == 0
+    assert response.json()["default_salt_target"] == 0
+
+
 def test_settings_missing_pool_is_404(client):
     client.app.state.default_pool_id = "missing-pool"
 
     response = client.get("/settings")
 
     assert response.status_code == 404
+
+
+def test_malformed_form_encoding_returns_400(client):
+    response = client.post(
+        "/readings/new",
+        content=b"notes=\xff",
+        headers={"content-type": "application/x-www-form-urlencoded"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "form body must be valid UTF-8"
+
+
+@pytest.mark.parametrize(
+    "origin", ["https://pool.local", "http://evil.local", "http://pool.local:0"]
+)
+def test_cross_origin_writes_are_rejected(client, origin):
+    response = client.post(
+        "/api/pools/example/maintenance",
+        json={"event_type": "vacuum"},
+        headers={"host": "Pool.Local", "origin": origin},
+    )
+
+    assert response.status_code == 403
+    assert client.get("/api/pools/example/maintenance").json() == []
+
+
+def test_same_origin_normalizes_case_and_default_port(client):
+    response = client.post(
+        "/api/pools/example/maintenance",
+        json={"event_type": "vacuum"},
+        headers={
+            "host": "Pool.Local:80",
+            "origin": "HTTP://pool.local",
+            "referer": "http://POOL.LOCAL:80/maintenance/new",
+        },
+    )
+
+    assert response.status_code == 201
 
 
 def test_offline_fallback_contains_no_cached_chemistry():
@@ -410,6 +567,75 @@ def test_readings_csv_export(client):
     )
 
 
+@pytest.mark.parametrize(
+    "create_path,payload,export_path,field",
+    [
+        (
+            "/api/pools/example/readings",
+            {"fc": 3, "notes": "\t=1+1"},
+            "/api/pools/example/export/readings.csv",
+            "notes",
+        ),
+        (
+            "/api/pools/example/additions",
+            {"chemical": "salt", "amount": 1, "unit": "lb", "reason": " +1+1"},
+            "/api/pools/example/export/additions.csv",
+            "reason",
+        ),
+        (
+            "/api/pools/example/maintenance",
+            {"event_type": "vacuum", "notes": "@SUM(1,1)"},
+            "/api/pools/example/export/maintenance.csv",
+            "notes",
+        ),
+    ],
+)
+def test_csv_exports_escape_formula_leading_text(
+    client, create_path, payload, export_path, field
+):
+    created = client.post(create_path, json=payload)
+    assert created.status_code == 201
+
+    response = client.get(export_path)
+    assert response.status_code == 200
+    row = next(csv.DictReader(io.StringIO(response.text)))
+    assert row[field] == "'" + payload[field]
+
+
+def test_export_routes_request_complete_history(client, monkeypatch):
+    from openpool import db
+
+    calls = []
+
+    def fake_list(kind):
+        def list_rows(conn, pool_id, limit=100, **kwargs):
+            calls.append((kind, limit))
+            return []
+
+        return list_rows
+
+    monkeypatch.setattr(db, "list_readings", fake_list("readings"))
+    monkeypatch.setattr(db, "list_additions", fake_list("additions"))
+    monkeypatch.setattr(db, "list_maintenance", fake_list("maintenance"))
+
+    for path in (
+        "/api/pools/example/export/readings.csv",
+        "/api/pools/example/export/additions.csv",
+        "/api/pools/example/export/maintenance.csv",
+        "/api/pools/example/export/all.json",
+    ):
+        assert client.get(path).status_code == 200
+
+    assert calls == [
+        ("readings", None),
+        ("additions", None),
+        ("maintenance", None),
+        ("readings", None),
+        ("additions", None),
+        ("maintenance", None),
+    ]
+
+
 def test_csi_provenance_is_exposed_in_api_dashboard_and_share(client):
     created = client.post(
         "/api/pools/example/readings",
@@ -471,6 +697,27 @@ def test_share_response_never_includes_token(client):
 
 def test_unknown_pool_returns_404(client):
     assert client.get("/api/pools/missing/readings").status_code == 404
+
+
+def test_invalid_pool_ids_return_400_consistently(client):
+    reading_id = client.post("/api/pools/example/readings", json={"fc": 3}).json()["id"]
+    addition_id = client.post(
+        "/api/pools/example/additions",
+        json={"chemical": "salt", "amount": 1, "unit": "lb"},
+    ).json()["id"]
+    event_id = client.post(
+        "/api/pools/example/maintenance", json={"event_type": "vacuum"}
+    ).json()["id"]
+
+    responses = [
+        client.delete(f"/api/pools/bad!/readings/{reading_id}"),
+        client.delete(f"/api/pools/bad!/additions/{addition_id}"),
+        client.delete(f"/api/pools/bad!/maintenance/{event_id}"),
+        client.get("/share/bad!"),
+    ]
+
+    assert [response.status_code for response in responses] == [400, 400, 400, 400]
+    assert all("pool_id" in response.text for response in responses)
 
 
 def test_form_post_reading_redirects_and_persists(client):

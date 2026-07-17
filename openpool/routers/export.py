@@ -27,7 +27,7 @@ def export_readings(pool_id: str, conn: db.Connection = Depends(get_db)) -> Resp
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
-        rows = db.list_readings(conn, pool_id, limit=10_000)
+        rows = db.list_readings(conn, pool_id, limit=None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -48,7 +48,7 @@ def export_additions(pool_id: str, conn: db.Connection = Depends(get_db)) -> Res
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
-        rows = db.list_additions(conn, pool_id, limit=10_000)
+        rows = db.list_additions(conn, pool_id, limit=None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -69,7 +69,7 @@ def export_maintenance(pool_id: str, conn: db.Connection = Depends(get_db)) -> R
     try:
         if not db.get_pool(conn, pool_id):
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
-        rows = db.list_maintenance(conn, pool_id, limit=10_000)
+        rows = db.list_maintenance(conn, pool_id, limit=None)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -93,9 +93,9 @@ def export_all(pool_id: str, conn: db.Connection = Depends(get_db)) -> JSONRespo
             raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
         payload = {
             "pool": db.public_pool(pool),
-            "readings": db.list_readings(conn, pool_id, limit=10_000),
-            "additions": db.list_additions(conn, pool_id, limit=10_000),
-            "maintenance": db.list_maintenance(conn, pool_id, limit=10_000),
+            "readings": db.list_readings(conn, pool_id, limit=None),
+            "additions": db.list_additions(conn, pool_id, limit=None),
+            "maintenance": db.list_maintenance(conn, pool_id, limit=None),
         }
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

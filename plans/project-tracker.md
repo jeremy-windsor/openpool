@@ -66,7 +66,7 @@ history in this file.
 - Dashboard, reading form, addition form, history, calculator, settings, and
   share page.
 - API endpoints for pools, readings, additions, calculator, share JSON, CSV
-  export, and JSON backup.
+  export, and portable JSON export.
 - Initial chemistry:
   - liquid chlorine / FC raise
   - dry stabilizer / CYA raise
@@ -101,7 +101,7 @@ history in this file.
   - API: full CRUD under `/api/pools/{id}/maintenance`.
   - UI: log/edit/delete from History page, dedicated form with common event
     types (backwash, clean filter, vacuum, SWG cell, refill, equipment).
-  - Export: `maintenance.csv` plus inclusion in `all.json` backup.
+  - Export: `maintenance.csv` plus inclusion in the portable `all.json` export.
 - New dosing formulas (documented in `docs/formulas.md`, fixture-tested):
   - Calcium hardness raise: calcium chloride (anhydrous + dihydrate).
   - Total alkalinity raise: baking soda.
@@ -222,6 +222,10 @@ Legend: [x] built · [~] partial/placeholder · [ ] not built.
   ratio arithmetic, percent boundaries, high-CYA refusal, dilution round-trip,
   and freshness boundaries. Property tests cover monotonicity, linearity, and
   TA-effect direction.
+- Adversarial hardening covers explicit-zero inputs, unsupported sanitizers,
+  stale and superseded status priority, malformed payloads, duplicate-create
+  races, complete exports, corrupt provenance, transactional schema preflight,
+  backup publication races, and a strict Docker build-context allowlist.
 - GitHub Actions Docker workflow passed for commit `c4aa4538296c`.
 - GHCR image publishes only after the test job passes.
 - Earlier Docker-hosted smoke test verified:
@@ -271,14 +275,16 @@ work remain post-P.
   immutable image before recommendation-following pilot use.
 - Metric support is stored as a preference but not implemented through inputs,
   results, exports, or charts.
+- Complete exports currently materialize the selected pool history in memory;
+  streaming is deferred unless pilot data volume shows it is needed.
 
 ## Next Phase
 
-Phase 3 (`plans/phase-3-chemistry-logbook-core.md`) is complete. Continue Gate P
-in the hardening plan, then run and record the Gate P review and native restore
-drill. Do not start charts, integrations, or recommendation-following pilot use
-before that review passes. Authentication remains mandatory before LAN-wide
-recommendation use or broader exposure.
+Phase 3 and Gate P are complete. Run the supervised single-owner pilot from an
+immutable image over loopback, SSH tunnel, or private VPN and record real
+workflow defects. Next engineering work is Gate X authentication/security,
+then the scheduled mobile reading/history UI slices. Authentication remains
+mandatory before LAN-wide recommendation use or broader exposure.
 
 ## How To Update This Tracker
 

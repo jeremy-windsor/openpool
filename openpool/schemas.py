@@ -1,28 +1,46 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 PoolSurface = Literal["plaster", "fiberglass", "vinyl"]
+PoolSanitizer = Literal["liquid_chlorine", "swg", "salt_water_generator"]
+
+
+def _reject_boolean_number(value: object) -> object:
+    if isinstance(value, bool):
+        raise ValueError("must be a number, not a boolean")
+    return value
+
+
+Number = Annotated[float, BeforeValidator(_reject_boolean_number)]
+NonBlankString = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class PoolIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str | None = None
-    name: str = "Home Pool"
-    volume_gallons: float = Field(20_000, gt=0, le=1_000_000)
-    spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
+    id: str | None = Field(None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    name: NonBlankString = "Home Pool"
+    volume_gallons: Number = Field(20_000, gt=0, le=1_000_000)
+    spa_volume_gallons: Number | None = Field(None, gt=0, le=1_000_000)
     surface: PoolSurface = "plaster"
-    sanitizer: str = "liquid_chlorine"
+    sanitizer: PoolSanitizer = "liquid_chlorine"
     unit_system: Literal["us"] = "us"
-    timezone: str = "UTC"
-    default_chlorine_percent: float = Field(10.0, ge=1, le=100)
-    default_cya_target: float = Field(40.0, ge=0, le=500)
-    default_salt_target: float = Field(3200.0, ge=0, le=50_000)
-    jug_size_fl_oz: float = Field(128.0, gt=0)
-    bag_size_lbs: float = Field(40.0, gt=0)
+    timezone: NonBlankString = "UTC"
+    default_chlorine_percent: Number = Field(10.0, ge=1, le=100)
+    default_cya_target: Number = Field(40.0, ge=0, le=500)
+    default_salt_target: Number = Field(3200.0, ge=0, le=50_000)
+    jug_size_fl_oz: Number = Field(128.0, gt=0)
+    bag_size_lbs: Number = Field(40.0, gt=0)
     share_enabled: bool = False
     share_token: str | None = None
     include_notes_in_share: bool = False
@@ -32,39 +50,61 @@ class PoolIn(BaseModel):
 class PoolUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = None
-    volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
-    spa_volume_gallons: float | None = Field(None, gt=0, le=1_000_000)
+    name: NonBlankString | None = None
+    volume_gallons: Number | None = Field(None, gt=0, le=1_000_000)
+    spa_volume_gallons: Number | None = Field(None, gt=0, le=1_000_000)
     surface: PoolSurface | None = None
-    sanitizer: str | None = None
+    sanitizer: PoolSanitizer | None = None
     unit_system: Literal["us"] | None = None
-    timezone: str | None = None
-    default_chlorine_percent: float | None = Field(None, ge=1, le=100)
-    default_cya_target: float | None = Field(None, ge=0, le=500)
-    default_salt_target: float | None = Field(None, ge=0, le=50_000)
-    jug_size_fl_oz: float | None = Field(None, gt=0)
-    bag_size_lbs: float | None = Field(None, gt=0)
+    timezone: NonBlankString | None = None
+    default_chlorine_percent: Number | None = Field(None, ge=1, le=100)
+    default_cya_target: Number | None = Field(None, ge=0, le=500)
+    default_salt_target: Number | None = Field(None, ge=0, le=50_000)
+    jug_size_fl_oz: Number | None = Field(None, gt=0)
+    bag_size_lbs: Number | None = Field(None, gt=0)
     share_enabled: bool | None = None
     share_token: str | None = None
     include_notes_in_share: bool | None = None
     notes: str | None = None
+
+    @field_validator(
+        "name",
+        "volume_gallons",
+        "surface",
+        "sanitizer",
+        "unit_system",
+        "timezone",
+        "default_chlorine_percent",
+        "default_cya_target",
+        "default_salt_target",
+        "jug_size_fl_oz",
+        "bag_size_lbs",
+        "share_enabled",
+        "include_notes_in_share",
+        mode="before",
+    )
+    @classmethod
+    def required_fields_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("cannot be null")
+        return value
 
 
 class ReadingIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     tested_at: str | None = None
-    fc: float | None = Field(None, ge=0, le=100)
-    cc: float | None = Field(None, ge=0, le=100)
-    ph: float | None = Field(None, ge=0, le=14)
-    ta: float | None = Field(None, ge=0, le=2_000)
-    ch: float | None = Field(None, ge=0, le=2_000)
-    cya: float | None = Field(None, ge=0, le=500)
-    salt: float | None = Field(None, ge=0, le=50_000)
-    borates: float | None = Field(None, ge=0, le=200)
-    water_temp_f: float | None = Field(None, ge=32, le=120)
-    filter_pressure: float | None = Field(None, ge=0, le=100)
-    source: str = "manual"
+    fc: Number | None = Field(None, ge=0, le=100)
+    cc: Number | None = Field(None, ge=0, le=100)
+    ph: Number | None = Field(None, ge=0, le=14)
+    ta: Number | None = Field(None, ge=0, le=2_000)
+    ch: Number | None = Field(None, ge=0, le=2_000)
+    cya: Number | None = Field(None, ge=0, le=500)
+    salt: Number | None = Field(None, ge=0, le=50_000)
+    borates: Number | None = Field(None, ge=0, le=200)
+    water_temp_f: Number | None = Field(None, ge=32, le=120)
+    filter_pressure: Number | None = Field(None, ge=0, le=100)
+    source: NonBlankString = "manual"
     notes: str | None = None
 
 
@@ -72,10 +112,10 @@ class AdditionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     added_at: str | None = None
-    chemical: str
-    strength_percent: float | None = Field(None, ge=1, le=100)
-    amount: float = Field(..., gt=0, le=100_000)
-    unit: str
+    chemical: NonBlankString
+    strength_percent: Number | None = Field(None, ge=1, le=100)
+    amount: Number = Field(..., gt=0, le=100_000)
+    unit: NonBlankString
     reason: str | None = None
     linked_reading_id: str | None = None
     notes: str | None = None
@@ -85,20 +125,27 @@ class AdditionUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     added_at: str | None = None
-    chemical: str | None = None
-    strength_percent: float | None = Field(None, ge=1, le=100)
-    amount: float | None = Field(None, gt=0, le=100_000)
-    unit: str | None = None
+    chemical: NonBlankString | None = None
+    strength_percent: Number | None = Field(None, ge=1, le=100)
+    amount: Number | None = Field(None, gt=0, le=100_000)
+    unit: NonBlankString | None = None
     reason: str | None = None
     linked_reading_id: str | None = None
     notes: str | None = None
+
+    @field_validator("chemical", "amount", "unit", mode="before")
+    @classmethod
+    def required_fields_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("cannot be null")
+        return value
 
 
 class MaintenanceIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_at: str | None = None
-    event_type: str
+    event_type: NonBlankString
     notes: str | None = None
 
 
@@ -106,8 +153,15 @@ class MaintenanceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_at: str | None = None
-    event_type: str | None = None
+    event_type: NonBlankString | None = None
     notes: str | None = None
+
+    @field_validator("event_type", mode="before")
+    @classmethod
+    def event_type_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("cannot be null")
+        return value
 
 
 class CalculationIn(BaseModel):
@@ -125,16 +179,16 @@ class CalculationIn(BaseModel):
         "lower_by_dilution",
         "swg_runtime",
     ]
-    current: float | None = Field(None, ge=0)
-    target: float | None = Field(None, ge=0)
-    pool_gallons: float | None = Field(None, gt=0, le=1_000_000)
-    strength: float | None = Field(None, ge=1, le=100)
+    current: Number | None = Field(None, ge=0)
+    target: Number | None = Field(None, ge=0)
+    pool_gallons: Number | None = Field(None, gt=0, le=1_000_000)
+    strength: Number | None = Field(None, ge=1, le=100)
     product: str | None = None
-    ta: float | None = Field(None, ge=0, le=2_000)
-    cya: float | None = Field(None, ge=0, le=500)
-    borates: float | None = Field(None, ge=0, le=200)
-    cell_lbs_per_day: float | None = Field(None, gt=0)
-    pump_hours: float | None = Field(None, gt=0, le=24)
+    ta: Number | None = Field(None, ge=0, le=2_000)
+    cya: Number | None = Field(None, ge=0, le=500)
+    borates: Number | None = Field(None, ge=0, le=200)
+    cell_lbs_per_day: Number | None = Field(None, gt=0)
+    pump_hours: Number | None = Field(None, gt=0, le=24)
 
 
 def validate_model(model_class, data: dict):

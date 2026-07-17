@@ -105,6 +105,47 @@ def test_share_token_preserved_when_enabled_with_existing_token(conn):
     assert renamed["name"] == "Renamed Pool"
 
 
+def test_legacy_short_share_token_cannot_be_enabled(conn):
+    conn.execute(
+        "update pool_profiles set share_token = 'short' where id = 'example'"
+    )
+    conn.commit()
+
+    with pytest.raises(ValueError, match="at least 16 characters"):
+        db.update_pool(conn, "example", {"share_enabled": 1})
+
+    assert db.get_pool(conn, "example")["share_enabled"] == 0
+
+
+def test_create_pool_preserves_explicit_zero_targets(conn):
+    pool = db.create_pool(
+        conn,
+        {
+            "id": "zero-targets",
+            "volume_gallons": 10_000,
+            "default_cya_target": 0,
+            "default_salt_target": 0,
+        },
+    )
+
+    assert pool["default_cya_target"] == 0
+    assert pool["default_salt_target"] == 0
+
+
+def test_duplicate_pool_raises_domain_error(conn):
+    with pytest.raises(db.PoolAlreadyExistsError, match="already exists"):
+        db.create_pool(conn, {"id": "example", "volume_gallons": 10_000})
+
+
+def test_duplicate_pool_insert_race_raises_domain_error(conn, monkeypatch):
+    monkeypatch.setattr(db, "get_pool", lambda _conn, _pool_id: None)
+
+    with pytest.raises(db.PoolAlreadyExistsError, match="already exists"):
+        db.create_pool(conn, {"id": "example", "volume_gallons": 10_000})
+
+    conn.rollback()
+
+
 def test_invalid_pool_id_rejected(conn):
     with pytest.raises(ValueError):
         db.get_pool(conn, "../nope")
@@ -234,6 +275,132 @@ def test_schema_copier_and_export_columns_share_one_contract(conn):
             """
         )
     conn.rollback()
+
+
+def test_migration_dry_run_validates_current_source_snapshot(tmp_path, capsys):
+    from openpool import migrate
+
+    path = tmp_path / "source.sqlite"
+    conn = db.connect(path)
+    try:
+        db.init_db(conn)
+        db.create_pool(conn, {"id": "source", "volume_gallons": 10_000})
+    finally:
+        conn.close()
+
+    assert migrate.main(["--sqlite", str(path), "--dry-run"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Dry run source rows:" in output
+    assert "pool_profiles: 1" in output
+
+
+def test_corrupt_csi_metadata_fails_closed(conn):
+    reading = db.create_reading(conn, "example", {"fc": 3, "cya": 40})
+    conn.execute(
+        "update test_readings set csi_meta_json = ? where id = ?",
+        (sqlite3.Binary(b"\xff"), reading["id"]),
+    )
+    conn.commit()
+
+    stored = db.get_reading(conn, reading["id"])
+
+    assert stored["csi_meta"]["formula_version"] == "unknown"
+    assert stored["csi_meta"]["warnings"] == ["Stored CSI provenance is invalid."]
+
+
+def test_list_methods_accept_no_limit(conn):
+    for hour in range(3):
+        db.create_reading(
+            conn,
+            "example",
+            {"tested_at": f"2026-06-01T0{hour}:00", "fc": hour},
+        )
+
+    assert len(db.list_readings(conn, "example", limit=2)) == 2
+    assert len(db.list_readings(conn, "example", limit=None)) == 3
+
+
+def test_future_schema_version_is_rejected_without_creating_tables(tmp_path):
+    path = tmp_path / "future.sqlite"
+    legacy = sqlite3.connect(path)
+    try:
+        legacy.execute(db.SCHEMA_VERSION_SQL)
+        legacy.execute(
+            "insert into schema_version (id, version) values (1, ?)",
+            (db.CURRENT_SCHEMA_VERSION + 1,),
+        )
+        legacy.execute("create table future_only (value text)")
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = db.connect(path)
+    try:
+        with pytest.raises(RuntimeError, match="newer than supported"):
+            db.init_db(conn)
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "select name from sqlite_master where type = 'table'"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert tables == {"schema_version", "future_only"}
+
+
+def test_claimed_current_schema_must_have_current_tables(tmp_path):
+    path = tmp_path / "forged-current.sqlite"
+    legacy = sqlite3.connect(path)
+    try:
+        legacy.execute(db.SCHEMA_VERSION_SQL)
+        legacy.execute(
+            "insert into schema_version (id, version) values (1, ?)",
+            (db.CURRENT_SCHEMA_VERSION,),
+        )
+        legacy.commit()
+    finally:
+        legacy.close()
+
+    conn = db.connect(path)
+    try:
+        with pytest.raises(RuntimeError, match="claims schema version"):
+            db.init_db(conn)
+        tables = {
+            row["name"]
+            for row in conn.execute(
+                "select name from sqlite_master where type = 'table'"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert tables == {"schema_version"}
+
+
+def test_failed_migration_rolls_back_all_schema_changes(tmp_path, monkeypatch):
+    path = tmp_path / "failed-migration.sqlite"
+
+    def fail_after_ddl(conn):
+        conn.execute("create table migration_artifact (value text)")
+        raise RuntimeError("forced migration failure")
+
+    monkeypatch.setattr(db, "CURRENT_SCHEMA_VERSION", 1)
+    monkeypatch.setattr(db, "MIGRATIONS", ((1, fail_after_ddl),))
+
+    conn = db.connect(path)
+    try:
+        with pytest.raises(RuntimeError, match="forced migration failure"):
+            db.init_db(conn)
+        tables = conn.execute(
+            "select name from sqlite_master where type = 'table'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert tables == []
 
 
 def test_unversioned_sqlite_database_upgrades_in_place(tmp_path):
@@ -634,13 +801,16 @@ def test_above_chart_cya_returns_retest_action_without_dose(conn):
 def test_status_summary_cautions_for_non_chlorine_out_of_range(conn):
     pool = db.get_pool(conn, "example")
     reading = {
+        "tested_at": "2026-06-01T12:00:00Z",
         "fc": 6,
         "cya": 40,
         "ch": 900,
         "csi": 0.7,
     }
 
-    status = services.status_summary(pool, reading)
+    status = services.status_summary(
+        pool, reading, now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
+    )
 
     assert status["level"] == "caution"
     assert status["text"] == "2 readings outside range"
@@ -651,12 +821,15 @@ def test_status_summary_cautions_for_non_chlorine_out_of_range(conn):
 def test_status_summary_uses_singular_outside_range_copy(conn):
     pool = db.get_pool(conn, "example")
     reading = {
+        "tested_at": "2026-06-01T12:00:00Z",
         "fc": 6,
         "cya": 40,
         "ch": 900,
     }
 
-    status = services.status_summary(pool, reading)
+    status = services.status_summary(
+        pool, reading, now=datetime(2026, 6, 1, 18, 0, tzinfo=UTC)
+    )
 
     assert status["level"] == "caution"
     assert status["text"] == "1 reading outside range"

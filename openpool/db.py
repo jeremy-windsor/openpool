@@ -25,6 +25,10 @@ CSI_FORMULA_VERSION = "openpool-csi-v1"
 CURRENT_SCHEMA_VERSION = 4
 
 
+class PoolAlreadyExistsError(ValueError):
+    """Raised when a pool identifier is already present."""
+
+
 class Cursor(Protocol):
     rowcount: int
 
@@ -329,26 +333,68 @@ def _schema_statement(conn: Connection, statement: str) -> str:
     return statement
 
 
+def _existing_schema_version(conn: Connection) -> int | None:
+    if getattr(conn, "backend", "sqlite") == "postgresql":
+        row = conn.execute("select to_regclass('schema_version') as table_name").fetchone()
+        if row_to_dict(row)["table_name"] is None:
+            return None
+    else:
+        row = conn.execute(
+            "select 1 as present from sqlite_master "
+            "where type = 'table' and name = 'schema_version'"
+        ).fetchone()
+        if row is None:
+            return None
+
+    version_row = conn.execute(
+        "select version from schema_version where id = 1"
+    ).fetchone()
+    if version_row is None:
+        return None
+    return int(row_to_dict(version_row)["version"])
+
+
+def _validate_current_schema(conn: Connection) -> None:
+    for table, columns in TABLE_COLUMNS.items():
+        column_sql = ", ".join(columns)
+        try:
+            conn.execute(f"select {column_sql} from {table} where 1 = 0")
+        except Exception as exc:
+            raise RuntimeError(
+                f"database claims schema version {CURRENT_SCHEMA_VERSION}, but "
+                f"{table} does not match that schema"
+            ) from exc
+
+
+def require_current_schema(conn: Connection) -> None:
+    version = _existing_schema_version(conn)
+    if version != CURRENT_SCHEMA_VERSION:
+        found = "unversioned" if version is None else str(version)
+        raise RuntimeError(
+            f"database schema is {found}; expected version {CURRENT_SCHEMA_VERSION}. "
+            "Start OpenPool once to upgrade it before migrating data."
+        )
+    _validate_current_schema(conn)
+
+
 def init_db(conn: Connection) -> None:
     try:
-        if getattr(conn, "backend", "sqlite") == "postgresql":
-            conn.execute("begin")
-        for statement in SCHEMA:
-            conn.execute(_schema_statement(conn, statement))
-        conn.execute(SCHEMA_VERSION_SQL)
-        version_row = conn.execute(
-            "select version from schema_version where id = 1"
-        ).fetchone()
-        if version_row is None:
-            conn.execute("insert into schema_version (id, version) values (1, 0)")
-            version = 0
-        else:
-            version = int(row_to_dict(version_row)["version"])
-        if version > CURRENT_SCHEMA_VERSION:
+        conn.execute("begin")
+        version = _existing_schema_version(conn)
+        if version is not None and version > CURRENT_SCHEMA_VERSION:
             raise RuntimeError(
                 f"database schema version {version} is newer than supported version "
                 f"{CURRENT_SCHEMA_VERSION}"
             )
+        if version == CURRENT_SCHEMA_VERSION:
+            _validate_current_schema(conn)
+
+        for statement in SCHEMA:
+            conn.execute(_schema_statement(conn, statement))
+        conn.execute(SCHEMA_VERSION_SQL)
+        if version is None:
+            conn.execute("insert into schema_version (id, version) values (1, 0)")
+            version = 0
         for migration_version, migration in MIGRATIONS:
             if migration_version <= version:
                 continue
@@ -450,15 +496,15 @@ def _validate_share_token(data: dict[str, Any], existing: dict[str, Any] | None 
     enabled = data.get("share_enabled", existing.get("share_enabled") if existing else None)
     token = data.get("share_token")
     existing_token = existing.get("share_token") if existing else None
-    if _share_enabled(enabled):
-        if not token:
-            if existing_token:
-                data.pop("share_token", None)
-                return
-            data["share_token"] = generate_share_token()
+    if token and len(str(token)) < MIN_SHARE_TOKEN_LENGTH:
+        raise ValueError("share token must be at least 16 characters")
+    if _share_enabled(enabled) and not token:
+        if existing_token:
+            if len(str(existing_token)) < MIN_SHARE_TOKEN_LENGTH:
+                raise ValueError("share token must be at least 16 characters")
+            data.pop("share_token", None)
             return
-        if len(str(token)) < MIN_SHARE_TOKEN_LENGTH:
-            raise ValueError("share token must be at least 16 characters")
+        data["share_token"] = generate_share_token()
 
 
 def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]:
@@ -483,6 +529,15 @@ def _clean_payload(payload: dict[str, Any], allowed: set[str]) -> dict[str, Any]
             value = 1 if value in {True, "true", "1", "on"} else 0
         cleaned[key] = value
     return cleaned
+
+
+def _is_unique_violation(exc: Exception) -> bool:
+    if isinstance(exc, sqlite3.IntegrityError):
+        return getattr(exc, "sqlite_errorcode", None) in {
+            sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY,
+            sqlite3.SQLITE_CONSTRAINT_UNIQUE,
+        }
+    return getattr(exc, "sqlstate", None) == "23505"
 
 
 def ensure_default_pool(
@@ -525,6 +580,8 @@ def create_pool(conn: Connection, payload: dict[str, Any]) -> dict[str, Any]:
     _validate_share_token(data)
     validate_timezone_name(data.get("timezone") or "UTC")
     pool_id = validate_pool_id(str(data.get("id") or DEFAULT_POOL_ID))
+    if get_pool(conn, pool_id):
+        raise PoolAlreadyExistsError(f"pool already exists: {pool_id}")
     timestamp = now_utc()
     row = {
         "id": pool_id,
@@ -536,8 +593,12 @@ def create_pool(conn: Connection, payload: dict[str, Any]) -> dict[str, Any]:
         "unit_system": data.get("unit_system") or "us",
         "timezone": data.get("timezone") or "UTC",
         "default_chlorine_percent": data.get("default_chlorine_percent") or 10.0,
-        "default_cya_target": data.get("default_cya_target") or 40.0,
-        "default_salt_target": data.get("default_salt_target") or 3200.0,
+        "default_cya_target": (
+            40.0 if data.get("default_cya_target") is None else data["default_cya_target"]
+        ),
+        "default_salt_target": (
+            3200.0 if data.get("default_salt_target") is None else data["default_salt_target"]
+        ),
         "jug_size_fl_oz": data.get("jug_size_fl_oz") or 128.0,
         "bag_size_lbs": data.get("bag_size_lbs") or 40.0,
         "share_enabled": data.get("share_enabled") or 0,
@@ -549,10 +610,15 @@ def create_pool(conn: Connection, payload: dict[str, Any]) -> dict[str, Any]:
     }
     columns = ", ".join(row)
     placeholders = ", ".join("?" for _ in row)
-    conn.execute(
-        f"insert into pool_profiles ({columns}) values ({placeholders})",
-        tuple(row.values()),
-    )
+    try:
+        conn.execute(
+            f"insert into pool_profiles ({columns}) values ({placeholders})",
+            tuple(row.values()),
+        )
+    except Exception as exc:
+        if _is_unique_violation(exc):
+            raise PoolAlreadyExistsError(f"pool already exists: {pool_id}") from exc
+        raise
     conn.commit()
     return get_pool(conn, pool_id) or row
 
@@ -622,8 +688,11 @@ def _reading_dict(row: Any | None) -> dict[str, Any] | None:
     raw_metadata = reading.get("csi_meta_json")
     if raw_metadata:
         try:
-            reading["csi_meta"] = json.loads(raw_metadata)
-        except (TypeError, json.JSONDecodeError):
+            metadata = json.loads(raw_metadata)
+            if not isinstance(metadata, dict) or not isinstance(metadata.get("warnings"), list):
+                raise ValueError("CSI provenance must be an object with a warnings list")
+            reading["csi_meta"] = metadata
+        except (TypeError, ValueError, UnicodeDecodeError):
             reading["csi_meta"] = {
                 "formula_version": "unknown",
                 "warnings": ["Stored CSI provenance is invalid."],
@@ -956,6 +1025,7 @@ def update_reading(
 
 
 def delete_reading(conn: Connection, pool_id: str, reading_id: str) -> None:
+    validate_pool_id(pool_id)
     existing = get_reading(conn, reading_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(reading_id)
@@ -966,7 +1036,7 @@ def delete_reading(conn: Connection, pool_id: str, reading_id: str) -> None:
 def list_readings(
     conn: Connection,
     pool_id: str,
-    limit: int = 100,
+    limit: int | None = 100,
     start_utc: str | None = None,
     end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -982,11 +1052,10 @@ def list_readings(
     if end_utc:
         query += " and tested_at < ?"
         params.append(end_utc)
-    query += """
-        order by tested_at desc, created_at desc
-        limit ?
-    """
-    params.append(limit)
+    query += " order by tested_at desc, created_at desc"
+    if limit is not None:
+        query += " limit ?"
+        params.append(limit)
     return [_reading_dict(row) or {} for row in conn.execute(query, tuple(params)).fetchall()]
 
 
@@ -1100,6 +1169,7 @@ def update_addition(
 
 
 def delete_addition(conn: Connection, pool_id: str, addition_id: str) -> None:
+    validate_pool_id(pool_id)
     existing = get_addition(conn, addition_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(addition_id)
@@ -1110,7 +1180,7 @@ def delete_addition(conn: Connection, pool_id: str, addition_id: str) -> None:
 def list_additions(
     conn: Connection,
     pool_id: str,
-    limit: int = 100,
+    limit: int | None = 100,
     start_utc: str | None = None,
     end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -1126,11 +1196,10 @@ def list_additions(
     if end_utc:
         query += " and added_at < ?"
         params.append(end_utc)
-    query += """
-        order by added_at desc, created_at desc
-        limit ?
-    """
-    params.append(limit)
+    query += " order by added_at desc, created_at desc"
+    if limit is not None:
+        query += " limit ?"
+        params.append(limit)
     return rows_to_dicts(
         conn.execute(query, tuple(params)).fetchall()
     )
@@ -1176,7 +1245,7 @@ def get_maintenance(conn: Connection, event_id: str) -> dict[str, Any] | None:
 def list_maintenance(
     conn: Connection,
     pool_id: str,
-    limit: int = 100,
+    limit: int | None = 100,
     start_utc: str | None = None,
     end_utc: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -1192,11 +1261,10 @@ def list_maintenance(
     if end_utc:
         query += " and event_at < ?"
         params.append(end_utc)
-    query += """
-        order by event_at desc, created_at desc
-        limit ?
-    """
-    params.append(limit)
+    query += " order by event_at desc, created_at desc"
+    if limit is not None:
+        query += " limit ?"
+        params.append(limit)
     return rows_to_dicts(
         conn.execute(query, tuple(params)).fetchall()
     )
@@ -1233,6 +1301,7 @@ def update_maintenance(
 
 
 def delete_maintenance(conn: Connection, pool_id: str, event_id: str) -> None:
+    validate_pool_id(pool_id)
     existing = get_maintenance(conn, event_id)
     if not existing or existing["pool_id"] != pool_id:
         raise KeyError(event_id)

@@ -47,9 +47,12 @@ SWG_TARGETS = {
 
 
 def _table_for_sanitizer(sanitizer: str) -> dict[int, dict[str, float]]:
-    if sanitizer.lower() in {"swg", "salt_water_generator"}:
+    normalized = sanitizer.lower()
+    if normalized in {"swg", "salt_water_generator"}:
         return SWG_TARGETS
-    return LIQUID_CHLORINE_TARGETS
+    if normalized == "liquid_chlorine":
+        return LIQUID_CHLORINE_TARGETS
+    raise ValueError("sanitizer must be liquid_chlorine or swg")
 
 
 def round_cya_bucket(

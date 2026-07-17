@@ -378,7 +378,7 @@ full test.
 **Layout:** segmented control to switch among **Readings / Additions /
 Maintenance** tables. Date-range filter (presets: 7d, 30d, 90d, all + custom).
 Each table is sortable, with sticky header. Tap a row → detail/edit sheet.
-Per-table **Export CSV** and overall **Export JSON backup** buttons live here.
+Per-table **Export CSV** and overall **Export portable JSON** buttons live here.
 
 **Mobile table strategy:** narrow screens collapse each row into a **stacked
 card** (date + key values) rather than a horizontally-scrolling spreadsheet.
@@ -423,7 +423,7 @@ Grouped sections:
 - **Appearance:** theme (Light / Dark / Outdoor / System).
 - **Sharing:** enable read-only share, generate/rotate token, copy share URL,
   toggle "include notes in share" (off by default).
-- **Data:** export all (JSON), import CSV, and the backup story.
+- **Data:** portable JSON export, CSV import, and native database backup guidance.
 - **Integrations (advanced, collapsed):** Home Assistant URL hint, MQTT,
   nodejs-poolController state URL.
 

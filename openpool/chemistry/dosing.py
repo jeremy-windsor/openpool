@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import isfinite
 
+PRODUCT_LABEL_WARNING = "Follow the product label; it overrides this calculation."
+
 
 @dataclass(frozen=True)
 class Dose:
@@ -18,6 +20,10 @@ class Dose:
     source_note: str | None = None
     assumptions: list[str] = field(default_factory=list)
     confidence: str = "high"
+
+    def __post_init__(self) -> None:
+        warnings = [warning for warning in self.warnings if warning != PRODUCT_LABEL_WARNING]
+        object.__setattr__(self, "warnings", [PRODUCT_LABEL_WARNING, *warnings])
 
     def to_dict(self) -> dict[str, object]:
         numeric_outputs = {

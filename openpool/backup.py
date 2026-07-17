@@ -42,7 +42,11 @@ def backup_sqlite(source: Path, destination: Path) -> Path:
             destination_conn.close()
             source_conn.close()
 
-        os.replace(temporary_path, destination)
+        # Publish without replacing a file that appeared after the initial
+        # existence check. The temporary file lives in the same directory, so
+        # a hard link gives us an atomic create-if-absent operation.
+        os.link(temporary_path, destination)
+        temporary_path.unlink()
         temporary_path = None
         return destination
     finally:

@@ -140,7 +140,11 @@ def dose_dry_chlorine_for_fc(
         raise ValueError("product must be trichlor, dichlor, or cal_hypo")
 
     if product == "cal_hypo":
-        strength = normalize_percent(available_chlorine_percent or CAL_HYPO_DEFAULT_PERCENT)
+        strength = normalize_percent(
+            CAL_HYPO_DEFAULT_PERCENT
+            if available_chlorine_percent is None
+            else available_chlorine_percent
+        )
         fraction = strength / 100
     else:
         fraction = DRY_CHLORINE_PRODUCTS[product]

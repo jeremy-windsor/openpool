@@ -20,11 +20,8 @@ def postgres_url() -> str:
 
 @pytest.fixture
 def postgres_conn(postgres_url: str):
-    try:
-        conn = db.connect(postgres_url)
-        db.init_db(conn)
-    except Exception as exc:
-        pytest.skip(f"PostgreSQL test database unavailable: {exc}")
+    conn = db.connect(postgres_url)
+    db.init_db(conn)
     try:
         yield conn
     finally:

@@ -109,6 +109,10 @@ def main(argv: list[str] | None = None) -> int:
 
     src = db.connect(sqlite_path)
     try:
+        # Keep validation, counts, and copied rows on one coherent SQLite
+        # snapshot. A concurrent writer can commit without changing this view.
+        src.execute("begin")
+        db.require_current_schema(src)
         source_counts = _table_counts(src)
         if args.dry_run:
             _print_counts("Dry run source rows:", source_counts)
@@ -128,6 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             dst.close()
     finally:
+        src.rollback()
         src.close()
 
     print("Migration complete:")
