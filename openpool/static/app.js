@@ -94,6 +94,30 @@
   var form = document.getElementById("calc-form");
   if (!goalSelect || !form) return;
 
+  var productSelect = form.elements.product;
+  var strength = form.elements.strength;
+  var confirmed = form.elements.strength_confirmed;
+  var defaults = JSON.parse(document.getElementById("strength-defaults").textContent);
+
+  function effectiveProduct() {
+    if (goalSelect.value === "raise_fc") return productSelect.value;
+    if (goalSelect.value === "slam_fc") return "liquid_chlorine";
+    if (goalSelect.value === "lower_ph") return "muriatic_acid";
+    return "";
+  }
+
+  function invalidateResult() {
+    var result = document.getElementById("calculator-result");
+    if (result) result.remove();
+  }
+
+  function resetStrength() {
+    strength.value = "";
+    confirmed.checked = false;
+    invalidateResult();
+    update();
+  }
+
   function update() {
     var goal = goalSelect.value;
     var nodes = form.querySelectorAll("[data-goals]");
@@ -101,9 +125,27 @@
       var show = nodes[i].getAttribute("data-goals").split(" ").indexOf(goal) !== -1;
       nodes[i].style.display = show ? "" : "none";
     }
+    productSelect.disabled = goal !== "raise_fc";
+    var product = effectiveProduct();
+    var usesStrength = Object.prototype.hasOwnProperty.call(defaults, product);
+    document.getElementById("strength-field").hidden = !usesStrength;
+    document.getElementById("strength-confirmation").hidden = !usesStrength;
+    strength.disabled = confirmed.disabled = !usesStrength;
+    strength.required = confirmed.required = usesStrength;
+    strength.placeholder = usesStrength ? "Suggested: " + defaults[product] + "%" : "";
+    form.elements.strength_product.value = product;
   }
 
-  goalSelect.addEventListener("change", update);
+  goalSelect.addEventListener("change", resetStrength);
+  productSelect.addEventListener("change", resetStrength);
+  strength.addEventListener("input", function () { confirmed.checked = false; });
+  strength.addEventListener("change", function () { confirmed.checked = false; });
+  form.addEventListener("input", invalidateResult);
+  form.addEventListener("change", invalidateResult);
+  window.addEventListener("pageshow", function () {
+    confirmed.checked = false;
+    update();
+  });
   update();
 })();
 

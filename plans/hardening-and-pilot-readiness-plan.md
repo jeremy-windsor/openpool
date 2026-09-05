@@ -107,8 +107,10 @@ that references a policy means "the policy's tests exist and pass."
   ambiguous fractional notation ("enter product strength as a percent,
   e.g. 10 for a 10% product"). Values `<= 0` or `> 100` are refused as
   impossible. Product-specific supported ranges remain **stricter** where
-  known (muriatic acid: only the supported product strengths; cal-hypo,
-  liquid chlorine: plausibility warnings on their typical label ranges).
+  known (muriatic acid: 14.5 or 31.45%; cal-hypo: 35–78% available chlorine;
+  liquid chlorine: 1–15%, including dilute bleach). Unsupported strengths
+  are refused. Variable-strength calculator requests require explicit label
+  strength and confirmation bound to the effective chemical.
   There is no fraction reinterpretation anywhere.
 - **SP-4 — Finite input and output.** Every chemistry entrypoint validates
   that every numeric argument is finite before computing, **and** every dose

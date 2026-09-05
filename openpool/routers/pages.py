@@ -483,6 +483,8 @@ def calculator(
     target: str | None = None,
     pool_gallons: str | None = None,
     strength: str | None = None,
+    strength_confirmed: str | None = None,
+    strength_product: str | None = None,
     product: str | None = None,
     ta: str | None = None,
     cya: str | None = None,
@@ -507,7 +509,11 @@ def calculator(
         "cell_lbs_per_day": cell_lbs_per_day,
         "pump_hours": pump_hours,
     }
-    values = {"product": product}
+    values = {
+        "product": product,
+        "strength_confirmed": strength_confirmed == "true",
+        "strength_product": strength_product,
+    }
     parse_errors: list[str] = []
     for name, raw in raw_numbers.items():
         parsed, parse_error = _parse_optional_float(name, raw)
@@ -540,6 +546,8 @@ def calculator(
             "result": result,
             "error": error,
             **values,
+            "strength_defaults": services.calculator_strength_defaults(pool),
+            "effective_product": services.calculator_product(goal, product),
         },
     )
 

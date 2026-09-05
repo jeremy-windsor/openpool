@@ -30,6 +30,11 @@ DRY_CHLORINE_PRODUCTS = {
 CAL_HYPO_DEFAULT_PERCENT = 65.0
 LIQUID_CHLORINE_TYPICAL_RANGE = (3.0, 15.0)
 CAL_HYPO_TYPICAL_RANGE = (35.0, 78.0)
+# Supported formulations, not a claim that other products cannot exist.
+CHLORINE_STRENGTH_RANGES = {
+    "liquid_chlorine": (1.0, 15.0),
+    "cal_hypo": CAL_HYPO_TYPICAL_RANGE,
+}
 CHLORINE_ADDITION_CHEMICALS = frozenset(
     {"liquid_chlorine", "trichlor", "dichlor", "cal_hypo"}
 )
@@ -41,6 +46,14 @@ CAL_HYPO_CH_PER_FC = CACO3_MOLAR_MASS / (2 * CL2_MOLAR_MASS)
 # Hypochlorite manufacture (Cl2 + 2 NaOH) yields equimolar NaCl, and spent
 # NaOCl also ends as NaCl, so each ppm FC adds about 2 moles of NaCl per Cl2.
 LIQUID_CHLORINE_SALT_PER_FC = 2 * NACL_MOLAR_MASS / CL2_MOLAR_MASS
+
+
+def validate_chlorine_strength(product: str, percent: float) -> float:
+    strength = normalize_percent(percent)
+    low, high = CHLORINE_STRENGTH_RANGES[product]
+    if not low <= strength <= high:
+        raise ValueError(f"{product} strength must be between {low:g} and {high:g} percent")
+    return strength
 
 
 def dose_liquid_chlorine_for_fc(
@@ -66,7 +79,7 @@ def dose_liquid_chlorine_for_fc(
     if pool_gallons <= 0:
         raise ValueError("pool volume must be greater than zero")
 
-    strength = normalize_percent(chlorine_percent)
+    strength = validate_chlorine_strength("liquid_chlorine", chlorine_percent)
     strength_warnings = []
     if not LIQUID_CHLORINE_TYPICAL_RANGE[0] <= strength <= LIQUID_CHLORINE_TYPICAL_RANGE[1]:
         strength_warnings.append(
@@ -140,7 +153,8 @@ def dose_dry_chlorine_for_fc(
         raise ValueError("product must be trichlor, dichlor, or cal_hypo")
 
     if product == "cal_hypo":
-        strength = normalize_percent(
+        strength = validate_chlorine_strength(
+            product,
             CAL_HYPO_DEFAULT_PERCENT
             if available_chlorine_percent is None
             else available_chlorine_percent
@@ -173,11 +187,6 @@ def dose_dry_chlorine_for_fc(
 
     effects: dict[str, float] = {}
     warnings: list[str] = []
-    if (
-        product == "cal_hypo"
-        and not CAL_HYPO_TYPICAL_RANGE[0] <= strength <= CAL_HYPO_TYPICAL_RANGE[1]
-    ):
-        warnings.append("Cal-hypo is typically 35-78%; confirm the label strength.")
     if product == "trichlor":
         effects["cya"] = rounded(delta_fc * TRICHLOR_CYA_PER_FC, 1)
         warnings.append("Trichlor is strongly acidic; expect pH and TA to drift down.")

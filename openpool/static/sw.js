@@ -1,4 +1,4 @@
-const CACHE_NAME = "openpool-shell-v5";
+const CACHE_NAME = "openpool-shell-v6";
 const SHELL = [
   "/static/tokens.css",
   "/static/app.css",

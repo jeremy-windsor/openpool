@@ -180,14 +180,22 @@ def test_cal_hypo_explicit_zero_strength_is_not_treated_as_default():
         )
 
 
-def test_unusual_chlorine_strengths_warn_without_refusing():
-    liquid = dose_liquid_chlorine_for_fc(10_000, 2, 4, chlorine_percent=20)
-    cal_hypo = dose_dry_chlorine_for_fc(
-        10_000, 2, 4, "cal_hypo", available_chlorine_percent=20
-    )
+@pytest.mark.parametrize("strength", [1, 10, 20, 34.9, 78.1, 100])
+def test_cal_hypo_unsupported_strengths_refuse_dose(strength):
+    with pytest.raises(ValueError, match="cal_hypo strength"):
+        dose_dry_chlorine_for_fc(10_000, 0, 6, "cal_hypo", strength)
 
-    assert any("typically 3-15%" in warning for warning in liquid.warnings)
-    assert any("typically 35-78%" in warning for warning in cal_hypo.warnings)
+
+@pytest.mark.parametrize("strength", [15.1, 20, 65, 100])
+def test_liquid_unsupported_strengths_refuse_dose(strength):
+    with pytest.raises(ValueError, match="liquid_chlorine strength"):
+        dose_liquid_chlorine_for_fc(10_000, 0, 6, strength)
+
+
+@pytest.mark.parametrize("strength", [35, 65, 73, 78])
+def test_cal_hypo_supported_strengths_preserve_mass_math(strength):
+    dose = dose_dry_chlorine_for_fc(10_000, 0, 6, "cal_hypo", strength)
+    assert dose.amount == pytest.approx(0.50072426712 * 16 / (strength / 100), abs=0.05)
 
 
 def test_gate_p_strength_boundaries_use_percent_only(reference_examples):

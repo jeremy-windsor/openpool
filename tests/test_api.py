@@ -545,7 +545,15 @@ def test_malformed_stored_timestamp_does_not_crash_pages(client):
 def test_calculate_liquid_chlorine(client):
     response = client.post(
         "/api/pools/example/calculate",
-        json={"goal": "raise_fc", "current": 4, "target": 5, "pool_gallons": 10000},
+        json={
+            "goal": "raise_fc",
+            "current": 4,
+            "target": 5,
+            "pool_gallons": 10000,
+            "strength": 10,
+            "strength_confirmed": True,
+            "strength_product": "liquid_chlorine",
+        },
     )
     assert response.status_code == 200
     dose = response.json()["dose"]
@@ -950,7 +958,15 @@ def test_calculate_raise_fc_with_trichlor_reports_cya_effect(client):
 def test_calculate_slam_uses_cya_shock_target(client):
     response = client.post(
         "/api/pools/example/calculate",
-        json={"goal": "slam_fc", "current": 4, "cya": 40, "pool_gallons": 10000},
+        json={
+            "goal": "slam_fc",
+            "current": 4,
+            "cya": 40,
+            "pool_gallons": 10000,
+            "strength": 10,
+            "strength_confirmed": True,
+            "strength_product": "liquid_chlorine",
+        },
     )
     assert response.status_code == 200
     body = response.json()
@@ -973,6 +989,9 @@ def test_calculate_lower_ph_returns_acid_and_ta_effect(client):
         "/api/pools/example/calculate",
         json={
             "goal": "lower_ph",
+            "strength": 31.45,
+            "strength_confirmed": True,
+            "strength_product": "muriatic_acid",
             "current": 7.8,
             "target": 7.5,
             "ta": 100,
@@ -991,11 +1010,27 @@ def test_calculate_lower_ph_returns_acid_and_ta_effect(client):
 def test_calculate_lower_ph_honors_acid_strength(client):
     strong = client.post(
         "/api/pools/example/calculate",
-        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 31.45},
+        json={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "strength": 31.45,
+            "strength_confirmed": True,
+            "strength_product": "muriatic_acid",
+        },
     )
     weak = client.post(
         "/api/pools/example/calculate",
-        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 14.5},
+        json={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "strength": 14.5,
+            "strength_confirmed": True,
+            "strength_product": "muriatic_acid",
+        },
     )
 
     assert strong.status_code == 200
@@ -1007,7 +1042,15 @@ def test_calculate_lower_ph_honors_acid_strength(client):
 def test_calculate_lower_ph_rejects_unsupported_acid_strength(client):
     response = client.post(
         "/api/pools/example/calculate",
-        json={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 20},
+        json={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "strength": 20,
+            "strength_confirmed": True,
+            "strength_product": "muriatic_acid",
+        },
     )
     assert response.status_code == 400
     assert "supported muriatic acid strengths" in response.json()["detail"]
@@ -1119,7 +1162,15 @@ def test_calculate_swg_runtime_missing_cell_rating_is_400(client):
 def test_calculator_page_renders_new_goals(client):
     response = client.get(
         "/calculator",
-        params={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100},
+        params={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "strength": 31.45,
+            "strength_confirmed": "true",
+            "strength_product": "muriatic_acid",
+        },
     )
     assert response.status_code == 200
     assert "muriatic acid" in response.text
@@ -1129,7 +1180,7 @@ def test_calculator_page_renders_new_goals(client):
 def test_calculator_page_accepts_blank_optional_numeric_query_fields(client):
     response = client.get(
         "/calculator?goal=raise_fc&product=liquid_chlorine&current=6&target=12"
-        "&ta=&cya=&borates=&cell_lbs_per_day=&pump_hours=&pool_gallons=18500&strength=12"
+        "&ta=&cya=&borates=&cell_lbs_per_day=&pump_hours=&pool_gallons=18500&strength=12&strength_confirmed=true&strength_product=liquid_chlorine"
     )
 
     assert response.status_code == 200
@@ -1160,7 +1211,15 @@ def test_calculator_page_rejects_non_finite_query_values(client):
 def test_calculator_page_lower_ph_shows_acid_strength(client):
     response = client.get(
         "/calculator",
-        params={"goal": "lower_ph", "current": 7.8, "target": 7.5, "ta": 100, "strength": 14.5},
+        params={
+            "goal": "lower_ph",
+            "current": 7.8,
+            "target": 7.5,
+            "ta": 100,
+            "strength": 14.5,
+            "strength_confirmed": True,
+            "strength_product": "muriatic_acid",
+        },
     )
     assert response.status_code == 200
     assert "muriatic acid label strength" in response.text

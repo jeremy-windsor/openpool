@@ -23,7 +23,7 @@
       </select>
     </label>
     <label data-goals="raise_fc">Chlorine product
-      <select name="product">
+      <select name="product" {% if goal != 'raise_fc' %}disabled{% endif %}>
         {% for value, label in [
           ("liquid_chlorine", "Liquid chlorine / bleach"),
           ("trichlor", "Trichlor"),
@@ -66,11 +66,19 @@
       <input name="pool_gallons" inputmode="decimal" value="{{ (pool_gallons or pool.volume_gallons) | num(false) }}">
       <small>gallons</small>
     </label>
-    <label data-goals="raise_fc slam_fc lower_ph">Product strength percent
-      <input name="strength" inputmode="decimal" value="{{ (strength if strength is not none else (31.45 if goal == 'lower_ph' else pool.default_chlorine_percent)) | num(false) }}">
+    {% set uses_strength = effective_product in strength_defaults %}
+    <label id="strength-field" {% if not uses_strength %}hidden{% endif %}>Product strength percent
+      <input name="strength" inputmode="decimal" value="{{ (strength if strength is not none else strength_defaults.get(effective_product)) | num(false) }}" {% if uses_strength %}required{% else %}disabled{% endif %}>
       <small data-goals="raise_fc slam_fc">liquid chlorine or cal-hypo label strength</small>
       <small data-goals="lower_ph">muriatic acid label strength; supported: 14.5 or 31.45</small>
+      <small>Defaults are suggestions. Verify the selected product's label strength.</small>
     </label>
+    <label id="strength-confirmation" {% if not uses_strength %}hidden{% endif %}>
+      <input type="checkbox" name="strength_confirmed" value="true" {% if uses_strength %}required{% else %}disabled{% endif %}>
+      I checked the selected product's label and confirmed this strength.
+    </label>
+    <input type="hidden" name="strength_product" value="{{ effective_product or '' }}">
+    <script type="application/json" id="strength-defaults">{{ strength_defaults | tojson }}</script>
     <button class="button primary" type="submit">Calculate</button>
   </form>
 </section>
@@ -84,7 +92,7 @@
 {% endif %}
 
 {% if result %}
-<section>
+<section id="calculator-result">
   <article class="dose-card">
     {% if goal == "swg_runtime" %}
     <h1>Set SWG output to {{ result.dose.amount | num }}%</h1>
@@ -95,11 +103,12 @@
     {% else %}
     <h1>Add {{ result.dose.amount | num }} {{ result.dose.unit.replace("_", " ") }}</h1>
     <p class="muted">{{ result.dose.chemical.replace("_", " ") }}{% if goal == "slam_fc" %} - SLAM target FC {{ result.targetFc | num }} ppm{% endif %}</p>
+    {% if result.strengthPercent is defined %}<p>Confirmed label strength: {{ result.strengthPercent | num }}%</p>{% endif %}
     {% endif %}
     {% if goal == "lower_by_dilution" %}
     <a class="button" href="/maintenance/new?event_type=water_refill">Log water replacement</a>
     {% elif goal != "swg_runtime" and result.dose.amount > 0 %}
-    <a class="button" href="/additions/new?chemical={{ result.dose.chemical }}&amp;amount={{ result.dose.amount }}&amp;unit={{ result.dose.unit }}{% if goal in ['raise_fc', 'slam_fc'] %}&amp;strength_percent={{ (strength or pool.default_chlorine_percent) | num(false) }}{% endif %}&amp;reason={{ goal }}">Log this dose</a>
+    <a class="button" href="/additions/new?chemical={{ result.dose.chemical }}&amp;amount={{ result.dose.amount }}&amp;unit={{ result.dose.unit }}{% if result.strengthPercent is defined %}&amp;strength_percent={{ result.strengthPercent | num(false) }}{% endif %}&amp;reason={{ goal }}">Log this dose</a>
     {% endif %}
     {% if result.dose.secondary %}
     <ul>

@@ -7,6 +7,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    StrictBool,
     StringConstraints,
     field_validator,
 )
@@ -183,6 +184,8 @@ class CalculationIn(BaseModel):
     target: Number | None = Field(None, ge=0)
     pool_gallons: Number | None = Field(None, gt=0, le=1_000_000)
     strength: Number | None = Field(None, ge=1, le=100)
+    strength_confirmed: StrictBool = False
+    strength_product: str | None = None
     product: str | None = None
     ta: Number | None = Field(None, ge=0, le=2_000)
     cya: Number | None = Field(None, ge=0, le=500)

@@ -60,6 +60,9 @@ jobs:
       - name: Pytest
         run: uv run pytest -q
 
+      - name: Calculator UI state tests
+        run: node --test tests/calculator.test.cjs
+
   build-pr:
     name: Build image (PR)
     if: github.event_name == 'pull_request'

@@ -11,9 +11,11 @@ from openpool.chemistry.acid_base import dose_muriatic_acid_for_ph, dose_soda_as
 from openpool.chemistry.alkalinity import dose_baking_soda_for_ta
 from openpool.chemistry.calcium import dose_calcium_chloride_for_ch
 from openpool.chemistry.chlorine import (
+    CAL_HYPO_DEFAULT_PERCENT,
     CHLORINE_ADDITION_CHEMICALS,
     dose_dry_chlorine_for_fc,
     dose_liquid_chlorine_for_fc,
+    validate_chlorine_strength,
 )
 from openpool.chemistry.cya import dose_dry_stabilizer_for_cya
 from openpool.chemistry.operations import estimate_drain_for_dilution, estimate_swg_runtime
@@ -204,6 +206,33 @@ def _validate_calculation_inputs(values: dict[str, Any]) -> None:
         raise ValueError("pump_hours must be greater than 0 and at most 24")
 
 
+def calculator_product(goal: str, product: str | None) -> str | None:
+    if goal == "raise_fc":
+        return product or "liquid_chlorine"
+    return {"slam_fc": "liquid_chlorine", "lower_ph": "muriatic_acid"}.get(goal)
+
+
+def calculator_strength_defaults(pool: dict[str, Any]) -> dict[str, float]:
+    return {
+        "liquid_chlorine": pool["default_chlorine_percent"],
+        "cal_hypo": CAL_HYPO_DEFAULT_PERCENT,
+        "muriatic_acid": 31.45,
+    }
+
+
+def _confirmed_calculator_strength(goal: str, values: dict[str, Any]) -> float:
+    product = calculator_product(goal, values.get("product"))
+    if goal != "raise_fc" and values.get("product") not in (None, "", product):
+        raise ValueError(f"{goal} uses {product}; select and confirm its label strength")
+    _require(values, goal, "strength")
+    strength = float(values["strength"])
+    if product in {"liquid_chlorine", "cal_hypo"}:
+        validate_chlorine_strength(product, strength)
+    if values.get("strength_confirmed") is not True or values.get("strength_product") != product:
+        raise ValueError(f"Confirm the label strength for {product} before calculating")
+    return strength
+
+
 def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> dict[str, Any]:
     pool_gallons = float(_value_or_default(values, "pool_gallons", pool["volume_gallons"]))
     numeric_values = {"pool_gallons": pool_gallons}
@@ -211,7 +240,8 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
         {
             name: float(value)
             for name, value in values.items()
-            if name not in {"goal", "product"} and value is not None
+            if name not in {"goal", "product", "strength_confirmed", "strength_product"}
+            and value is not None
         }
     )
     for name, value in numeric_values.items():
@@ -232,16 +262,17 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
     if goal == "raise_fc":
         _require(values, goal, "current", "target")
         product = values.get("product") or "liquid_chlorine"
+        strength = (
+            _confirmed_calculator_strength(goal, values)
+            if product in {"liquid_chlorine", "cal_hypo"}
+            else None
+        )
         if product == "liquid_chlorine":
             dose = dose_liquid_chlorine_for_fc(
                 pool_gallons=pool_gallons,
                 current_fc=float(values["current"]),
                 target_fc=float(values["target"]),
-                chlorine_percent=float(
-                    _value_or_default(
-                        values, "strength", pool["default_chlorine_percent"]
-                    )
-                ),
+                chlorine_percent=strength,
                 jug_size_fl_oz=float(_value_or_default(pool, "jug_size_fl_oz", 128.0)),
             )
         else:
@@ -250,12 +281,10 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
                 current_fc=float(values["current"]),
                 target_fc=float(values["target"]),
                 product=product,
-                available_chlorine_percent=(
-                    float(values["strength"])
-                    if product == "cal_hypo" and values.get("strength") is not None
-                    else None
-                ),
+                available_chlorine_percent=strength,
             )
+        if strength is not None:
+            extra["strengthPercent"] = strength
     elif goal == "slam_fc":
         _require(values, goal, "current")
         targets = fc_cya_targets(
@@ -265,9 +294,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             pool_gallons=pool_gallons,
             current_fc=float(values["current"]),
             target_fc=targets.slam,
-            chlorine_percent=float(
-                _value_or_default(values, "strength", pool["default_chlorine_percent"])
-            ),
+            chlorine_percent=_confirmed_calculator_strength(goal, values),
             jug_size_fl_oz=float(_value_or_default(pool, "jug_size_fl_oz", 128.0)),
         )
         dose.warnings.extend(targets.warnings)
@@ -281,6 +308,7 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
         )
         extra["targets"] = targets.to_dict()
         extra["targetFc"] = targets.slam
+        extra["strengthPercent"] = float(values["strength"])
     elif goal == "raise_cya":
         _require(values, goal, "current", "target")
         dose = dose_dry_stabilizer_for_cya(
@@ -319,8 +347,9 @@ def calculate_goal(pool: dict[str, Any], goal: str, values: dict[str, Any]) -> d
             ta=float(values["ta"]),
             cya=values.get("cya"),
             borates=values.get("borates"),
-            acid_percent=float(_value_or_default(values, "strength", 31.45)),
+            acid_percent=_confirmed_calculator_strength(goal, values),
         )
+        extra["strengthPercent"] = float(values["strength"])
     elif goal == "raise_ph":
         _require(values, goal, "current", "target", "ta")
         dose = dose_soda_ash_for_ph(
@@ -387,6 +416,12 @@ def recommended_actions(
         return []
 
     target_fc = targets.target_high
+    try:
+        validate_chlorine_strength(
+            "liquid_chlorine", float(_value_or_default(pool, "default_chlorine_percent", 10.0))
+        )
+    except ValueError as exc:
+        return [_retest_action(str(exc))]
     dose = dose_liquid_chlorine_for_fc(
         pool_gallons=float(pool["volume_gallons"]),
         current_fc=current_fc,

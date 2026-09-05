@@ -60,10 +60,14 @@ SQLite and all non-PostgreSQL checks:
 ```bash
 uv run ruff check .
 uv run pytest -q
+node --test tests/calculator.test.cjs
 git diff --check
 ```
 
 The two PostgreSQL tests skip only when `OPENPOOL_TEST_DATABASE_URL` is unset.
+The Node tests exercise calculator product/goal transitions and confirmation
+invalidation without browser dependencies. `tests/test_strength_safety.py`
+checks the same safety boundary through the service, HTML, and JSON API.
 
 To run them locally, start a disposable PostgreSQL instance and point the suite
 at it:

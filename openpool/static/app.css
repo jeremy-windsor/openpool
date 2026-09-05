@@ -501,6 +501,10 @@ label {
   margin-bottom: 14px;
 }
 
+.form-card [hidden] {
+  display: none;
+}
+
 input,
 select,
 textarea {

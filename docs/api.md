@@ -102,8 +102,24 @@ Supported goals:
   optional `pump_hours` (default 24). Returns the percent output setting.
 
 Request fields: `goal`, `current`, `target`, `pool_gallons`, `strength`,
-`product`, `ta`, `cya`, `borates`, `cell_lbs_per_day`, `pump_hours`. Missing
+`product`, `strength_confirmed`, `strength_product`, `ta`, `cya`, `borates`,
+`cell_lbs_per_day`, `pump_hours`. Missing
 required inputs for a goal return `400` with the missing names.
+
+Variable-strength calculations require an explicit `strength`, JSON boolean
+`strength_confirmed: true`, and `strength_product` matching the effective chemical:
+`liquid_chlorine` for liquid raise-FC and SLAM, `cal_hypo` for cal-hypo raise-FC,
+or `muriatic_acid` for lower-pH. Older clients omitting these fields receive `400`.
+Confirmation records the caller's label check; the server cannot inspect a physical label.
+The calculator UI clears strength and confirmation when product or goal changes.
+
+Supported strengths are 1–15% liquid chlorine (including dilute bleach), 35–78%
+available chlorine for cal-hypo, and 14.5% or 31.45% HCl for muriatic acid.
+Unsupported products must not be forced into these ranges. The server refuses
+out-of-range doses; these limits describe supported formulations, not all products
+that may exist. Trichlor/dichlor retain their documented fixed-formulation model
+and do not use these confirmation fields. Successful variable-strength results
+include `strengthPercent`, also used for the dose log.
 
 ## Exports and Share
 
