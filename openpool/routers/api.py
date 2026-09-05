@@ -14,7 +14,6 @@ from openpool.schemas import (
     PoolIn,
     PoolUpdate,
     ReadingIn,
-    dump_model,
 )
 
 router = APIRouter()
@@ -56,7 +55,7 @@ def list_pools(conn: db.Connection = Depends(get_db)) -> list[dict[str, object]]
 @router.post("/api/pools", status_code=201)
 def create_pool(pool: PoolIn, conn: db.Connection = Depends(get_db)) -> dict[str, object]:
     try:
-        created = db.create_pool(conn, dump_model(pool, exclude_none=True))
+        created = db.create_pool(conn, pool.model_dump(exclude_none=True))
         return db.public_pool(created)
     except db.PoolAlreadyExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -85,7 +84,7 @@ def update_pool(
         updated = db.update_pool(
             conn,
             pool_id,
-            dump_model(pool, exclude_unset=True),
+            pool.model_dump(exclude_unset=True),
         )
         return db.public_pool(updated)
     except KeyError as exc:
@@ -111,7 +110,7 @@ def create_reading(
     conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        return db.create_reading(conn, pool_id, dump_model(reading, exclude_none=True))
+        return db.create_reading(conn, pool_id, reading.model_dump(exclude_none=True))
     except KeyError as exc:
         raise _not_found(pool_id) from exc
     except ValueError as exc:
@@ -160,7 +159,7 @@ def update_reading(
             conn,
             pool_id,
             reading_id,
-            dump_model(reading, exclude_unset=True),
+            reading.model_dump(exclude_unset=True),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
@@ -200,7 +199,7 @@ def create_addition(
     conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        return db.create_addition(conn, pool_id, dump_model(addition, exclude_none=True))
+        return db.create_addition(conn, pool_id, addition.model_dump(exclude_none=True))
     except KeyError as exc:
         raise _not_found(pool_id) from exc
     except ValueError as exc:
@@ -219,7 +218,7 @@ def update_addition(
             conn,
             pool_id,
             addition_id,
-            dump_model(addition, exclude_unset=True),
+            addition.model_dump(exclude_unset=True),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
@@ -262,7 +261,7 @@ def create_maintenance(
     conn: db.Connection = Depends(get_db),
 ) -> dict[str, object]:
     try:
-        return db.create_maintenance(conn, pool_id, dump_model(event, exclude_none=True))
+        return db.create_maintenance(conn, pool_id, event.model_dump(exclude_none=True))
     except KeyError as exc:
         raise _not_found(pool_id) from exc
     except ValueError as exc:
@@ -281,7 +280,7 @@ def update_maintenance(
             conn,
             pool_id,
             event_id,
-            dump_model(event, exclude_unset=True),
+            event.model_dump(exclude_unset=True),
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"not found: {exc.args[0]}") from exc
@@ -314,7 +313,7 @@ def calculate(
         pool = db.get_pool(conn, pool_id)
         if not pool:
             raise _not_found(pool_id)
-        return services.calculate_goal(pool, calculation.goal, dump_model(calculation))
+        return services.calculate_goal(pool, calculation.goal, calculation.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

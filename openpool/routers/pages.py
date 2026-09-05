@@ -17,9 +17,6 @@ from openpool.schemas import (
     MaintenanceIn,
     PoolIn,
     ReadingIn,
-    dump_model,
-    model_field_names,
-    validate_model,
 )
 
 templates = Jinja2Templates(directory=str(Path(__file__).parents[1] / "templates"))
@@ -111,8 +108,8 @@ async def save_reading(request: Request, conn: db.Connection = Depends(get_db)):
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        reading = validate_model(ReadingIn, form)
-        db.create_reading(conn, pool_id, dump_model(reading, exclude_none=True))
+        reading = ReadingIn.model_validate(form)
+        db.create_reading(conn, pool_id, reading.model_dump(exclude_none=True))
     except ValueError as exc:
         return templates.TemplateResponse(
             request=request,
@@ -134,7 +131,7 @@ def _form_update_payload(model, drop: tuple[str, ...], keep_if_set: tuple[str, .
     Drops server-computed fields and timestamp fields the user left blank so
     they keep their stored values instead of being nulled or regenerated.
     """
-    payload = dump_model(model)
+    payload = model.model_dump()
     for key in drop:
         payload.pop(key, None)
     for key in keep_if_set:
@@ -174,7 +171,7 @@ async def save_reading_edit(
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        reading = validate_model(ReadingIn, form)
+        reading = ReadingIn.model_validate(form)
         payload = _form_update_payload(reading, drop=("source",), keep_if_set=("tested_at",))
         db.update_reading(conn, pool_id, reading_id, payload)
     except KeyError as exc:
@@ -223,8 +220,8 @@ async def save_addition(request: Request, conn: db.Connection = Depends(get_db))
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        addition = validate_model(AdditionIn, form)
-        db.create_addition(conn, pool_id, dump_model(addition, exclude_none=True))
+        addition = AdditionIn.model_validate(form)
+        db.create_addition(conn, pool_id, addition.model_dump(exclude_none=True))
     except ValueError as exc:
         return templates.TemplateResponse(
             request=request,
@@ -270,7 +267,7 @@ async def save_addition_edit(
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        addition = validate_model(AdditionIn, form)
+        addition = AdditionIn.model_validate(form)
         payload = _form_update_payload(
             addition, drop=("linked_reading_id",), keep_if_set=("added_at",)
         )
@@ -321,8 +318,8 @@ async def save_maintenance(request: Request, conn: db.Connection = Depends(get_d
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        event = validate_model(MaintenanceIn, form)
-        db.create_maintenance(conn, pool_id, dump_model(event, exclude_none=True))
+        event = MaintenanceIn.model_validate(form)
+        db.create_maintenance(conn, pool_id, event.model_dump(exclude_none=True))
     except ValueError as exc:
         return templates.TemplateResponse(
             request=request,
@@ -368,7 +365,7 @@ async def save_maintenance_edit(
     pool_id = _pool_id(request)
     form = _empty_to_none(await _form_data(request))
     try:
-        event = validate_model(MaintenanceIn, form)
+        event = MaintenanceIn.model_validate(form)
         payload = _form_update_payload(event, drop=(), keep_if_set=("event_at",))
         db.update_maintenance(conn, pool_id, event_id, payload)
     except KeyError as exc:
@@ -568,9 +565,9 @@ async def save_settings(request: Request, conn: db.Connection = Depends(get_db))
     if not pool:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}")
     try:
-        current = {key: pool.get(key) for key in model_field_names(PoolIn)}
-        settings = validate_model(PoolIn, {**current, **form})
-        db.update_pool(conn, pool_id, dump_model(settings, exclude_none=True))
+        current = {key: pool.get(key) for key in PoolIn.model_fields}
+        settings = PoolIn.model_validate({**current, **form})
+        db.update_pool(conn, pool_id, settings.model_dump(exclude_none=True))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"pool not found: {pool_id}") from exc
     except ValueError as exc:

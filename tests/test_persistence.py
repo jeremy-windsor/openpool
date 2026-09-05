@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from openpool import db, services
-from openpool.schemas import AdditionIn, CalculationIn, PoolIn, ReadingIn, validate_model
+from openpool.schemas import AdditionIn, CalculationIn, PoolIn, ReadingIn
 
 
 def test_reading_persists_and_computes_tc(conn):
@@ -202,11 +202,11 @@ def test_reading_schema_rejects_impossible_values():
 def test_documented_hard_bound_edges(
     model_class, base, field, valid_low, valid_high, invalid_low, invalid_high
 ):
-    validate_model(model_class, {**base, field: valid_low})
-    validate_model(model_class, {**base, field: valid_high})
+    model_class.model_validate({**base, field: valid_low})
+    model_class.model_validate({**base, field: valid_high})
     for invalid in (invalid_low, invalid_high):
         with pytest.raises(ValueError, match=field):
-            validate_model(model_class, {**base, field: invalid})
+            model_class.model_validate({**base, field: invalid})
 
 
 def test_client_cannot_supply_server_owned_reading_values():

@@ -189,23 +189,3 @@ class CalculationIn(BaseModel):
     borates: Number | None = Field(None, ge=0, le=200)
     cell_lbs_per_day: Number | None = Field(None, gt=0)
     pump_hours: Number | None = Field(None, gt=0, le=24)
-
-
-def validate_model(model_class, data: dict):
-    if hasattr(model_class, "model_validate"):
-        return model_class.model_validate(data)
-    return model_class(**data)
-
-
-def dump_model(model: BaseModel, **kwargs) -> dict:
-    if hasattr(model, "model_dump"):
-        return model.model_dump(**kwargs)
-
-    allowed = {"exclude_none", "exclude_unset", "by_alias", "exclude_defaults"}
-    return model.dict(**{key: value for key, value in kwargs.items() if key in allowed})
-
-
-def model_field_names(model_class) -> set[str]:
-    if hasattr(model_class, "model_fields"):
-        return set(model_class.model_fields)
-    return set(model_class.__fields__)
